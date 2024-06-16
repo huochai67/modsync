@@ -4,6 +4,17 @@ use std::{
     path::Path,
 };
 
+use toml::{value::Array, Table};
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct ModMetaMods {
+    pub modId: String,
+    pub version: String,
+}
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct ModMeta {
+    pub mods: Vec<ModMetaMods>,
+}
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct MSMOD {
     pub md5: String,
@@ -70,12 +81,28 @@ impl MSMOD {
                                 let mut contents = String::new();
                                 if let Ok(_rsize) = zipfile.read_to_string(&mut contents) {
                                     for line in contents.lines() {
-                                        let data : Vec<&str> = line.split(": ").collect();
+                                        let data: Vec<&str> = line.split(": ").collect();
                                         if data[0] == "Specification-Title" {
                                             modid = Some(data[1].to_string());
                                         }
                                         if data[0] == "Implementation-Version" {
                                             version = Some(data[1].to_string());
+                                        }
+                                    }
+                                }
+                            }
+                            if zipfile.name() == "META-INF/mods.toml" {
+                                let mut contents = String::new();
+                                if let Ok(_rsize) = zipfile.read_to_string(&mut contents) {
+                                    if let Ok(modmeta) =
+                                        toml::from_str::<ModMeta>(contents.as_str())
+                                    {
+                                        if modmeta.mods.len() > 0 {
+                                            modid = Option::Some(modmeta.mods[0].modId.clone());
+                                            if modmeta.mods[0].version != "${file.jarVersion}" {
+                                                version =
+                                                    Option::Some(modmeta.mods[0].version.clone());
+                                            }
                                         }
                                     }
                                 }
