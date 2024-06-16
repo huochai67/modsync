@@ -148,7 +148,14 @@ function App() {
             <TableColumn key={"local"}>{t("LOCAL")}</TableColumn>
             <TableColumn key={"remote"}>{t("REMOTE")}</TableColumn>
           </TableHeader>
-          <TableBody items={difflist} isLoading={isreloading || btnStartStatus} loadingContent={<Spinner label="Loading..." />}>
+          <TableBody items={difflist} isLoading={isreloading || btnStartStatus}
+            loadingContent={
+              <div className="h-full w-full bg-background opacity-40">
+                <div className="h-screen w-screen flex flex-row justify-center">
+                  <Spinner className="top-0" label="Loading..." />
+                </div>
+              </div>
+            }>
             {(item) => (
               <TableRow key={item.index}>
                 {(columnKey) => <TableCell className="w-[50vw]">{renderCell(item, columnKey.toString())}</TableCell>}
