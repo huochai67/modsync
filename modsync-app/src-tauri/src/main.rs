@@ -1,7 +1,6 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-
 use std::sync::Arc;
 
 use modsync_core::{
@@ -39,7 +38,7 @@ impl MSNextRunTime {
 
 fn getdotminecraft() -> String {
     let pwd = format!(
-        "{}/.minecraft",
+        "{}/../.minecraft",
         std::env::current_dir().unwrap().to_str().unwrap()
     );
     let _ = std::fs::create_dir_all(pwd.clone());
@@ -107,6 +106,16 @@ async fn get_changelog(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<St
         }
         Err(err) => Err(err.to_string()),
     }
+}
+
+#[tauri::command]
+async fn get_title(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<String, String> {
+    if let Err(err) = msnruntime.try_get_config().await {
+        return Err(err.to_string());
+    }
+
+    let config = msnruntime.getconfig().await;
+    Ok(config.as_ref().unwrap().title.clone())
 }
 
 #[tauri::command]
@@ -201,6 +210,7 @@ fn main() {
             download_options,
             download_serverlist,
             get_changelog,
+            get_title,
             try_init
         ])
         .run(tauri::generate_context!())

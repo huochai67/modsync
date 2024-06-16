@@ -1,6 +1,6 @@
 [package]
 name = "modsync-app"
-version = "0.0.1"
+version = "0.1.0"
 description = "ModSync on Tauri"
 authors = ["nicefish4520"]
 edition = "2021"

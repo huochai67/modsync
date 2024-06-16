@@ -1,23 +1,11 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
 import { mb_error, mb_info } from "../messagebox";
-import { Box, LinearProgress, LinearProgressProps, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
-import "../base.css"
+import { Listbox, ListboxItem, Progress } from "@nextui-org/react";
 
-function LinearProgressWithLabel(props: LinearProgressProps & { value: number }) {
-    return (
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Box sx={{ width: '100%', mr: 1 }}>
-                <LinearProgress variant="determinate" {...props} />
-            </Box>
-            <Box sx={{ minWidth: 35 }}>
-                <Typography variant="body2" color="text.secondary">{`${Math.round(
-                    props.value,
-                )}%`}</Typography>
-            </Box>
-        </Box>
-    );
-}
+import { ContextDarkMode } from "../usercontext";
+import clsx from "clsx";
+import "../global.css";
 
 type TaskInfo = {
     totalsize: number,
@@ -31,46 +19,34 @@ function sleep(ms: number) {
 
 function App() {
     const [tasklist, settasklist] = useState(new Array<TaskInfo>());
-    const [count, setCount] = useState(1);
-    useEffect(() => {
+
+    function fetchtasks() {
         invoke<TaskInfo[]>('get_tasks').then((value) => {
+            settasklist(value);
             sleep(50).then(() => {
-                settasklist(value);
-                setCount((c) => c + 1);
                 if (value.length == 0) {
                     mb_info("done!");
                     window.location.replace('/')
+                } else {
+                    fetchtasks()
                 }
             });
         }).catch(mb_error);
-    }, []);
+    }
 
+    useEffect(fetchtasks, []);
+
+    const dark = useContext(ContextDarkMode);
     return (
-        <main className="w-screen h-screen rounded-xl border-4">
-            <div className="flex flex-col h-full divide-y-4">
-                <div className="grow w-full overflow-auto">
-                    <TableContainer component={Paper}>
-                        <Table id="table">
-                            <TableHead>
-                                <TableRow id="header">
-                                    <TableCell id="name">Name</TableCell>
-                                    <TableCell id="progress" align='left'>Progress</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody id={count.toString()}>
-                                {tasklist.map((row) => {
-                                    return (
-                                        <TableRow>
-                                            <TableCell align="left" className=" w-2/5">{row.name}</TableCell>
-                                            <TableCell align="left"><LinearProgressWithLabel value={(row.downloadsize / row.totalsize) * 100} /></TableCell>
-                                        </TableRow>)
-                                })}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </div>
-            </div>
-        </main>
+        <div className={clsx("flex flex-col h-full border-4 divide-y-4 divide-background border-background text-foreground bg-background", { "dark": dark })}>
+            <Listbox items={tasklist}>
+                {(item) => (
+                    <ListboxItem key={item.name}>
+                        <Progress label={item.name} showValueLabel value={(item.downloadsize / item.totalsize) * 100} />
+                    </ListboxItem>
+                )}
+            </Listbox>
+        </div>
     );
 }
 

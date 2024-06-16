@@ -9,6 +9,7 @@
     "path:default",
     "event:default",
     "window:default",
+    "window:allow-set-title",
     "app:default",
     "image:default",
     "resources:default",
