@@ -1,0 +1,5 @@
+﻿.vs
+out
+CMakeSettings.json
+upload
+build
