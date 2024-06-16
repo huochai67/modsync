@@ -1,16 +1,20 @@
 import { invoke } from '@tauri-apps/api/core';
 import { Window } from '@tauri-apps/api/window'
 import { Button, ButtonGroup } from "@nextui-org/button";
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import clsx from "clsx";
-import { Cog6ToothIcon, ServerStackIcon, Square2StackIcon, SunIcon } from '@heroicons/react/24/solid';
+import { Cog6ToothIcon, MoonIcon, ServerStackIcon, Square2StackIcon, SunIcon } from '@heroicons/react/24/solid';
+import { useTranslation } from 'react-i18next';
 
 import { mb_error, mb_info } from './messagebox';
 import { Divider } from '@nextui-org/react';
 import "./global.css";
 import { getConfig, setConfig } from './config';
+import "./i18n"
+
 
 function BTNSyncServerList() {
+  const { t } = useTranslation();
   const [okstate, setOkState] = useState(true);
   return (
     <Button endContent={<ServerStackIcon className='size-4' />} isLoading={!okstate} onClick={() => {
@@ -20,10 +24,11 @@ function BTNSyncServerList() {
         setOkState(true);
       }).catch(mb_error);
     }}>
-      SyncMPlist
+      {t('SYNCMPL')}
     </Button>
   );
 } function BTNSyncSetting() {
+  const { t } = useTranslation();
   const [okstate, setOkState] = useState(true);
   return (
     <Button endContent={<Cog6ToothIcon className='size-4' />} isLoading={!okstate} onClick={() => {
@@ -33,16 +38,17 @@ function BTNSyncServerList() {
         setOkState(true);
       }).catch(mb_error);
     }}>
-      SyncOption
+      {t('SYNCOPTIONS')}
     </Button>
   );
 }
 function BTNShowConfict() {
+  const { t } = useTranslation();
   return (
     <Button endContent={<Square2StackIcon className='size-4' />} onClick={() => {
       window.location.replace('ms.html')
     }}>
-      ShowConfict
+      {t('SHOWCONFLICT')}
     </Button>
   );
 }
@@ -56,17 +62,23 @@ function App() {
   const [changelog, setChangelog] = useState('CHANGELOG');
   const [init, setinit] = useState(false);
 
-  useMemo(() => invoke<string>('get_title').then(result => {
-    Window.getCurrent().setTitle(result);
-  }), [])
-  useMemo(() => invoke<string>('get_changelog')
-    .then(result => {
-      setChangelog(result);
-      setinit(true);
-    })
-    .catch(error => {
-      mb_error(error);
-    }), []);
+  useEffect(() => {
+    invoke<string>('get_title')
+      .then(result => {
+        Window.getCurrent().setTitle(result);
+      })
+  }, []);
+
+  useEffect(() => {
+    invoke<string>('get_changelog')
+      .then(result => {
+        setChangelog(result);
+        setinit(true);
+      })
+      .catch(error => {
+        mb_error(error);
+      })
+  }, []);
 
   return (
     <div className={clsx("flex flex-col h-full border-4 divide-y-4 divide-background border-background text-foreground bg-background", { "dark": dark })}>
@@ -74,17 +86,21 @@ function App() {
         <textarea className="h-full w-full resize-none" value={changelog} readOnly />
       </div>
       <Divider />
-      <div className="flex">
-        <Button isIconOnly aria-label="Dark" onClick={() => {
-          setConfig({ darkmode: !dark });
-          setdark((d) => !d);
-        }}><SunIcon /></Button>
+      <div className="flex h-14">
+        <div className='flex items-center'>
+          <Button size='sm' variant='light' isIconOnly aria-label="Dark" onClick={() => {
+            setConfig({ darkmode: !dark });
+            setdark((d) => !d);
+          }}>{dark ? <SunIcon /> : <MoonIcon />}</Button>
+        </div>
         <div className="grow" />
-        <ButtonGroup className='w-[40vw]' color='primary' variant="solid" isDisabled={!init}>
-          <BTNSyncServerList />
-          <BTNSyncSetting />
-          <BTNShowConfict />
-        </ButtonGroup>
+        <div className='w-[50vw] flex items-center justify-end'>
+          <ButtonGroup color='primary' variant="solid" isDisabled={!init}>
+            <BTNSyncServerList />
+            <BTNSyncSetting />
+            <BTNShowConfict />
+          </ButtonGroup>
+        </div>
       </div>
     </div>
   );

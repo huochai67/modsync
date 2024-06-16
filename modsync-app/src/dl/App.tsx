@@ -1,10 +1,7 @@
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
 import { mb_error, mb_info } from "../messagebox";
 import { Listbox, ListboxItem, Progress } from "@nextui-org/react";
-
-import { ContextDarkMode } from "../usercontext";
-import clsx from "clsx";
 import "../global.css";
 
 type TaskInfo = {
@@ -36,9 +33,8 @@ function App() {
 
     useEffect(fetchtasks, []);
 
-    const dark = useContext(ContextDarkMode);
     return (
-        <div className={clsx("flex flex-col h-full border-4 divide-y-4 divide-background border-background text-foreground bg-background", { "dark": dark })}>
+        <div className="flex flex-col h-full border-4 divide-y-4 divide-background border-background text-foreground bg-background">
             <Listbox items={tasklist}>
                 {(item) => (
                     <ListboxItem key={item.name}>

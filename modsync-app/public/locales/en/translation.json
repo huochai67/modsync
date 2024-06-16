@@ -1,0 +1,17 @@
+{
+    "SYNCMPL" : "SyncSrvList",
+    "SYNCOPTIONS" : "SyncKeymap",
+    "SHOWCONFLICT" : "ShowConflict",
+
+    "NONE" : "None",
+    "UPDATE" : "Update ",
+    "DELETE" : "Delete ",
+    "DOWNLOAD" : "Download ",
+
+    "LOCAL" : "Local",
+    "REMOTE" : "Remote",
+
+    "BACK" : "Back",
+    "RELOAD" : "Reload",
+    "SYNC" : "Sync"
+ }

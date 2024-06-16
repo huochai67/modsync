@@ -18,9 +18,12 @@
     "@tauri-apps/plugin-shell": ">=2.0.0-beta.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.2.10",
+    "i18next": "^23.11.5",
+    "i18next-http-backend": "^2.5.2",
     "material-icons": "^1.13.12",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-i18next": "^14.1.2"
   },
   "devDependencies": {
     "@tauri-apps/cli": ">=2.0.0-beta.20",

@@ -4,9 +4,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { Button, ButtonGroup, Card, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Chip, CardBody, Spinner, Tooltip, Divider } from "@nextui-org/react";
 import { ArrowLeftIcon, ArrowPathIcon, CheckIcon } from '@heroicons/react/24/solid'
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 import { mb_error, mb_info } from "../messagebox";
 import "../global.css";
+import "../i18n"
 
 
 type MSMOD = {
@@ -29,6 +31,7 @@ function backtohome() {
 }
 
 function App() {
+  const { t } = useTranslation();
   const [difflist, setdifflist] = useState(new Array<MODDiff>());
   const [isreloading, setisreloading] = React.useState(true);
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>('all');
@@ -82,9 +85,9 @@ function App() {
       <Card>
         <CardBody>
           <div className="flex flex-row space-x-1">
-            <Chip color="secondary">{"Update " + supdate.toString()}</Chip>
-            <Chip color="warning">{"Delete " + sdelect.toString()}</Chip>
-            <Chip color="primary">{"Download " + sdownload.toString()}</Chip>
+            <Chip color="secondary">{t("UPDATE") + supdate.toString()}</Chip>
+            <Chip color="warning">{t("DELETE") + sdelect.toString()}</Chip>
+            <Chip color="primary">{t("DOWNLOAD") + sdownload.toString()}</Chip>
           </div>
         </CardBody>
       </Card>
@@ -94,7 +97,7 @@ function App() {
   const renderCell = React.useCallback((diff: MODDiff, columnKey: string) => {
     function rendercellimpl(value: MSMOD | null, diff: MODDiff) {
       if (!value)
-        return (<>None</>)
+        return (<>{t("NONE")}</>)
       let diffpath = false, diffmd5 = false, diffmodid = false, diffversion = false;
       if (diff.local != null && diff.remote != null) {
         diffpath = diff.local.path != diff.remote.path;
@@ -106,7 +109,7 @@ function App() {
       function cell_renderrow(clip: string, lable: string | null, red: boolean) {
         return (
           <div className="flex flex-row space-x-2">
-            <Chip size="sm" className="h-5" color={red ? "danger" : "primary"}>{clip}</Chip >
+            <Chip size="sm" className="h-5 text-center" classNames={{ content: "w-14" }} color={red ? "danger" : "primary"}>{clip}</Chip >
             <Tooltip placement="top-start" content={lable} delay={1000}><p className={clsx("flex items-center w-[30vw] overflow-hidden text-nowrap", { "text-red-700": red })}>{lable}</p></Tooltip>
           </div>
         )
@@ -135,15 +138,15 @@ function App() {
   }, []);
 
   return (
-    <div className={clsx("flex flex-col h-full border-4 divide-y-4 divide-background border-background text-foreground bg-background", { "dark": false })}>
+    <div className="flex flex-col h-full border-4 divide-y-4 divide-background border-background text-foreground bg-background">
       <div className="grow w-full overflow-auto">
         <Table aria-label="Difflist table"
           selectionMode="multiple"
           selectedKeys={selectedKeys}
           onSelectionChange={setSelectedKeys}>
           <TableHeader>
-            <TableColumn key={"local"}>Local</TableColumn>
-            <TableColumn key={"remote"}>Remote</TableColumn>
+            <TableColumn key={"local"}>{t("LOCAL")}</TableColumn>
+            <TableColumn key={"remote"}>{t("REMOTE")}</TableColumn>
           </TableHeader>
           <TableBody items={difflist} isLoading={isreloading || btnStartStatus} loadingContent={<Spinner label="Loading..." />}>
             {(item) => (
@@ -158,23 +161,25 @@ function App() {
       <div className="flex h-14">
         <SelectInfo />
         <div className="grow" />
-        <ButtonGroup className="w-[40vw]" variant="solid" color="primary" isDisabled={btnStartStatus || isreloading}>
-          <Button onClick={backtohome} endContent={<ArrowLeftIcon />}>Back</Button>
-          <Button endContent={<ArrowPathIcon />} isLoading={isreloading} onClick={reload}>Refresh</Button>
-          <Button endContent={<CheckIcon />} isLoading={isreloading || btnStartStatus} onClick={() => {
-            setbtnStartStatus(true);
-            let sendlist = new Array()
-            selecteddiffs.forEach((value) => {
-              sendlist.push({ name: value.name, local: value.local, remote: value.remote });
-            })
-            invoke<MODDiff[]>('apply_diff', {
-              diffs: sendlist,
-            }).then(() => {
-              setbtnStartStatus(false);
-              window.location.replace('dl.html')
-            }).catch(mb_error);
-          }}>Sync</Button>
-        </ButtonGroup>
+        <div className='w-[50vw] flex items-center justify-end'>
+          <ButtonGroup variant="solid" color="primary" isDisabled={btnStartStatus || isreloading}>
+            <Button className="w-1/3" endContent={<ArrowLeftIcon className="size-4" />} isLoading={isreloading} onClick={backtohome} >{t("BACK")}</Button>
+            <Button className="w-1/3" endContent={<ArrowPathIcon className="size-4" />} isLoading={isreloading} onClick={reload}>{t("RELOAD")}</Button>
+            <Button className="w-1/3" endContent={<CheckIcon className="size-4" />} isLoading={isreloading || btnStartStatus} onClick={() => {
+              setbtnStartStatus(true);
+              let sendlist = new Array()
+              selecteddiffs.forEach((value) => {
+                sendlist.push({ name: value.name, local: value.local, remote: value.remote });
+              })
+              invoke<MODDiff[]>('apply_diff', {
+                diffs: sendlist,
+              }).then(() => {
+                setbtnStartStatus(false);
+                window.location.replace('dl.html')
+              }).catch(mb_error);
+            }}>{t("SYNC")}</Button>
+          </ButtonGroup>
+        </div>
       </div>
     </div>
   );

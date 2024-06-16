@@ -1,0 +1,17 @@
+{
+    "SYNCMPL" : "下载服务器列表",
+    "SYNCOPTIONS" : "下载按键设置",
+    "SHOWCONFLICT" : "开始更新",
+
+    "NONE" : "无",
+    "UPDATE" : "更新 ",
+    "DELETE" : "删除 ",
+    "DOWNLOAD" : "下载 ",
+
+    "LOCAL" : "本地",
+    "REMOTE" : "远程",
+
+    "BACK" : "返回",
+    "RELOAD" : "刷新",
+    "SYNC" : "同步"
+ }
