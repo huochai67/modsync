@@ -20,8 +20,13 @@ fn writetofile(filepath: &str, data: &[u8]) -> Result<usize, Box<dyn std::error:
 }
 
 #[tauri::command]
-fn generate(changelog: &str, title: &str, serverurl: &str, forceserverlist: bool) -> Result<(), String> {
-    if let Err(err) = writetofile("./data/changelog.txt", changelog.as_bytes()){
+fn generate(
+    changelog: &str,
+    title: &str,
+    serverurl: &str,
+    forceserverlist: bool,
+) -> Result<(), String> {
+    if let Err(err) = writetofile("./data/changelog.txt", changelog.as_bytes()) {
         return Err(err.to_string());
     }
 
@@ -29,15 +34,17 @@ fn generate(changelog: &str, title: &str, serverurl: &str, forceserverlist: bool
     if Path::new("./data/data/mods").exists() {
         modlist_url = format!("{}modslist.json", serverurl);
 
-        match MSMOD::from_directory("./data/data/mods", Some(serverurl)) {
+        match MSMOD::from_directory("./data/data/mods", Some(format!("{}", serverurl).as_str())) {
             Ok(vecmsmod) => {
-                if let Err(err) = writetofile("./data/modslist.json", serde_json::to_string(&vecmsmod).unwrap().as_bytes()){
+                if let Err(err) = writetofile(
+                    "./data/modslist.json",
+                    serde_json::to_string(&vecmsmod).unwrap().as_bytes(),
+                ) {
                     return Err(err.to_string());
                 }
-            },
+            }
             Err(err) => {
-                
-            return Err(err.to_string());
+                return Err(err.to_string());
             }
         }
     }
@@ -64,7 +71,10 @@ fn generate(changelog: &str, title: &str, serverurl: &str, forceserverlist: bool
         forceserverlist,
         title.to_string(),
     );
-    if let Err(err) = writetofile("./data/info.json", serde_json::to_string(&config).unwrap().as_bytes()) {
+    if let Err(err) = writetofile(
+        "./data/info.json",
+        serde_json::to_string(&config).unwrap().as_bytes(),
+    ) {
         return Err(err.to_string());
     }
 
@@ -91,14 +101,13 @@ fn get_changelog() -> String {
 
 #[tauri::command]
 fn get_config() -> Option<MSConfig> {
-    match MSConfig::from_file("./data/info.json") {
-        Ok(config) => {
-            return Some(config);
-        }
-        Err(_) => {
-            return None;
-        }
-    };
+    if !Path::new("./data/info.json").exists() {
+        return None;
+    }
+    if let Ok(config) = MSConfig::from_file("./data/info.json") {
+        return Some(config);
+    }
+    return None;
 }
 
 fn main() {
