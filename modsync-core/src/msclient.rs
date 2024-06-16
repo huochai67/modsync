@@ -1,7 +1,7 @@
 use crate::{
     msconfig::MSConfig,
     msmod::MSMOD,
-    mstask::{DownloadTask},
+    mstask::DownloadTask,
     utils::{http_download, http_get},
 };
 
@@ -42,8 +42,8 @@ impl MSClient<'_> {
     }
     pub async fn get_modlist(
         &self,
-    ) -> Result<Vec<MSMOD>, Box<dyn std::error::Error + Send + Sync>> {
-        let modlist: Vec<MSMOD> =
+    ) -> Result<Vec<Option<MSMOD>>, Box<dyn std::error::Error + Send + Sync>> {
+        let modlist: Vec<Option<MSMOD>> =
             serde_json::from_str(http_get(self.config.modlist_url.as_str()).await?.as_str())?;
         Ok(modlist)
     }
@@ -77,7 +77,9 @@ impl MSClient<'_> {
         }
     }
 
-    pub fn get_modlist_local(&self) -> Result<Vec<MSMOD>, Box<dyn std::error::Error + Send>> {
+    pub fn get_modlist_local(
+        &self,
+    ) -> Result<Vec<Option<MSMOD>>, Box<dyn std::error::Error + Send>> {
         let modspath = format!("{}/mods", self.path.as_ref().unwrap());
         let _ = std::fs::create_dir_all(modspath.as_str());
         MSMOD::from_directory(modspath.as_str(), None)
@@ -85,41 +87,63 @@ impl MSClient<'_> {
 
     pub fn get_difflist(
         &self,
-        remotelist: Vec<MSMOD>,
+        remotelist: Vec<Option<MSMOD>>,
     ) -> Result<Vec<MODDiff>, Box<dyn std::error::Error + Send>> {
         let mut ret: Vec<MODDiff> = vec![];
         match self.get_modlist_local() {
-            Ok(locallist) => {
-                for localmod in locallist.iter() {
+            Ok(mut locallist) => {
+                for remotemod_ in remotelist.iter() {
+                    let remotemod = remotemod_.as_ref().unwrap();
+
                     let mut ok = false;
-                    for remotemod in remotelist.iter() {
-                        if remotemod.md5 == localmod.md5 {
-                            ok = true;
-                            break;
+                    for localmod_ in locallist.iter_mut() {
+                        if let Some(localmod) = localmod_.as_ref() {
+                            if localmod.md5 == remotemod.md5 {
+                                *localmod_ = None;
+                                ok = true;
+                                break;
+                            }
+
+                            if localmod.modid == remotemod.modid {
+                                ret.push(MODDiff::new(
+                                    remotemod.path.clone(),
+                                    Some(localmod_.as_ref().unwrap().clone()),
+                                    Some(remotemod.clone()),
+                                ));
+                                *localmod_ = None;
+                                ok = true;
+                                break;
+                            }
+
+                            if localmod.path == remotemod.path {
+                                ret.push(MODDiff::new(
+                                    remotemod.path.clone(),
+                                    Some(localmod_.as_ref().unwrap().clone()),
+                                    Some(remotemod.clone()),
+                                ));
+                                *localmod_ = None;
+                                ok = true;
+                                break;
+                            }
                         }
                     }
-                    if !ok {
+                    if ok {
+                        continue;
+                    }
+
+                    ret.push(MODDiff::new(
+                        remotemod.path.clone(),
+                        None,
+                        Some(remotemod.clone()),
+                    ))
+                }
+
+                for localmod_ in locallist.iter() {
+                    if let Some(localmod) = localmod_ {
                         ret.push(MODDiff::new(
                             localmod.path.clone(),
                             Some(localmod.clone()),
                             None,
-                        ))
-                    }
-                }
-
-                for remotemod in remotelist.iter() {
-                    let mut ok = false;
-                    for localmod in locallist.iter() {
-                        if remotemod.md5 == localmod.md5 {
-                            ok = true;
-                            break;
-                        }
-                    }
-                    if !ok {
-                        ret.push(MODDiff::new(
-                            remotemod.path.clone(),
-                            None,
-                            Some(remotemod.clone()),
                         ))
                     }
                 }
@@ -134,7 +158,11 @@ impl MSClient<'_> {
         let mut tasks: Vec<DownloadTask> = vec![];
         for diff in diffs {
             if let Some(local) = &diff.local {
-                let _ = std::fs::remove_file(format!("{}/mods/{}", self.path.as_ref().unwrap().as_str(), local.path.as_str()));
+                let _ = std::fs::remove_file(format!(
+                    "{}/mods/{}",
+                    self.path.as_ref().unwrap().as_str(),
+                    local.path.as_str()
+                ));
             }
 
             if let Some(remote) = &diff.remote {
