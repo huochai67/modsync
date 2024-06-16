@@ -16,9 +16,5 @@ zip = "2.1.3"
 toml = "0.8.14"
 
 [[bin]]
-name = "fetchremote"
-path = "src/bin/fetchremote.rs"
-
-[[bin]]
 name = "gendiff"
 path = "src/bin/gendiff.rs"
