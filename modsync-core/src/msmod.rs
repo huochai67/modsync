@@ -4,8 +4,6 @@ use std::{
     path::Path,
 };
 
-use toml::{value::Array, Table};
-
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct MSMOD {
     pub md5: String,
@@ -14,16 +12,6 @@ pub struct MSMOD {
     pub url: Option<String>,
     pub modid: Option<String>,
     pub version: Option<String>,
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct ModMetaMods {
-    pub modId: String,
-    pub version: String,
-}
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct ModMeta {
-    pub mods: Vec<ModMetaMods>,
 }
 
 impl MSMOD {
@@ -78,15 +66,16 @@ impl MSMOD {
                 if let Ok(mut archive) = zip::ZipArchive::new(reader) {
                     for i in 0..archive.len() {
                         if let Ok(mut zipfile) = archive.by_index(i) {
-                            if zipfile.name() == "META-INF/mods.toml" {
+                            if zipfile.name() == "META-INF/MANIFEST.MF" {
                                 let mut contents = String::new();
                                 if let Ok(_rsize) = zipfile.read_to_string(&mut contents) {
-                                    if let Ok(modmeta) =
-                                        toml::from_str::<ModMeta>(contents.as_str())
-                                    {
-                                        if modmeta.mods.len() > 0 {
-                                            modid = Option::Some(modmeta.mods[0].modId.clone());
-                                            version = Option::Some(modmeta.mods[0].version.clone());
+                                    for line in contents.lines() {
+                                        let data : Vec<&str> = line.split(": ").collect();
+                                        if data[0] == "Specification-Title" {
+                                            modid = Some(data[1].to_string());
+                                        }
+                                        if data[0] == "Implementation-Version" {
+                                            version = Some(data[1].to_string());
                                         }
                                     }
                                 }
