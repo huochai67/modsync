@@ -38,42 +38,52 @@ impl MSClient<'_> {
     }
 
     pub async fn get_changelog(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        http_get(self.config.changelog_url.as_str()).await
+        match &self.config.changelog_url {
+            Some(changelog_url) => http_get(changelog_url.as_str()).await,
+            None => Err(Box::from("config dont contain changelog url".to_string())),
+        }
     }
     pub async fn get_modlist(
         &self,
     ) -> Result<Vec<Option<MSMOD>>, Box<dyn std::error::Error + Send + Sync>> {
-        let modlist: Vec<Option<MSMOD>> =
-            serde_json::from_str(http_get(self.config.modlist_url.as_str()).await?.as_str())?;
-        Ok(modlist)
+        match &self.config.modlist_url {
+            Some(modlist_url) => Ok(serde_json::from_str(
+                http_get(modlist_url.as_str()).await?.as_str(),
+            )?),
+            None => Err(Box::from("config dont contain modlist url".to_string())),
+        }
     }
     pub async fn get_option(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        http_get(self.config.option_url.as_str()).await
+        match &self.config.option_url {
+            Some(option_url) => http_get(option_url.as_str()).await,
+            None => Err(Box::from("config dont contain option url".to_string())),
+        }
     }
     pub async fn get_serverlist(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        http_get(self.config.serverlist_url.as_str()).await
+        match &self.config.serverlist_url {
+            Some(serverlist_url) => http_get(serverlist_url.as_str()).await,
+            None => Err(Box::from("config dont contain serverlist url".to_string())),
+        }
     }
 
     pub async fn sync_serverlist(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match http_download(
-            self.config.serverlist_url.as_str(),
-            format!("{}/servers.dat", self.path.as_ref().unwrap()).as_str(),
-        )
-        .await
-        {
-            Ok(_) => Ok(()),
-            Err(err) => Err(err),
+        match &self.config.serverlist_url {
+            Some(serverlist_url) => Ok(http_download(
+                serverlist_url.as_str(),
+                format!("{}/servers.dat", self.path.as_ref().unwrap()).as_str(),
+            )
+            .await?),
+            None => Err(Box::from("config dont contain serverlist url".to_string())),
         }
     }
     pub async fn sync_option(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match http_download(
-            self.config.option_url.as_str(),
-            format!("{}/option.txt", self.path.as_ref().unwrap()).as_str(),
-        )
-        .await
-        {
-            Ok(_) => Ok(()),
-            Err(err) => Err(err),
+        match &self.config.option_url {
+            Some(option_url) => Ok(http_download(
+                option_url.as_str(),
+                format!("{}/option.txt", self.path.as_ref().unwrap()).as_str(),
+            )
+            .await?),
+            None => Err(Box::from("config dont contain option url".to_string())),
         }
     }
 

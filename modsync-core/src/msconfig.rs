@@ -4,20 +4,22 @@ use crate::utils::http_get;
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MSConfig {
     pub base_url: String,
-    pub changelog_url: String,
-    pub modlist_url: String,
-    pub option_url: String,
-    pub serverlist_url: String,
+    pub changelog_url: Option<String>,
+    pub modlist_url: Option<String>,
+    pub option_url: Option<String>,
+    pub serverlist_url: Option<String>,
+    pub neccessary_url: Option<String>,
     pub force_sync_server_list: bool,
     pub title: String,
 }
 impl MSConfig {
     pub fn new(
         base_url: String,
-        changelog_url: String,
-        modlist_url: String,
-        option_url: String,
-        serverlist_url: String,
+        changelog_url: Option<String>,
+        modlist_url: Option<String>,
+        neccessary_url: Option<String>,
+        option_url: Option<String>,
+        serverlist_url: Option<String>,
         force_sync_server_list: bool,
         title: String,
     ) -> MSConfig {
@@ -25,6 +27,7 @@ impl MSConfig {
             base_url,
             changelog_url,
             modlist_url,
+            neccessary_url,
             option_url,
             serverlist_url,
             force_sync_server_list,
@@ -40,19 +43,6 @@ impl MSConfig {
         let mut str: String = "".to_string();
         file.read_to_string(&mut str)?;
         Ok(MSConfig::from_str(str.as_str())?)
-    }
-
-    pub fn has_changelog(&self) -> bool {
-        self.changelog_url != "null"
-    }
-    pub fn has_modlist(&self) -> bool {
-        self.modlist_url != "null"
-    }
-    pub fn has_option(&self) -> bool {
-        self.option_url != "null"
-    }
-    pub fn has_serverlist(&self) -> bool {
-        self.serverlist_url != "null"
     }
 
     pub fn get_title(&self) -> String {
