@@ -100,9 +100,12 @@ async fn get_changelog(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<St
         .await
     {
         Ok(changelog) => {
-            let ret = changelog.clone();
-            *selfchangelog = Some(changelog);
-            Ok(ret)
+            let data = match changelog {
+                Some(changelog) => changelog,
+                None => "NO CHANGELOG!!!".into(),
+            };
+            *selfchangelog = Some(data.clone());
+            Ok(data)
         }
         Err(err) => Err(err.to_string()),
     }
@@ -127,11 +130,8 @@ async fn get_diff(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<Vec<MOD
     let config = msnruntime.getconfig().await;
     let mut client_ = MSClient::config(config.as_ref().unwrap());
     let client = client_.path(getdotminecraft());
-    match client.get_modlist().await {
-        Ok(modlist_remote) => match client.get_difflist(modlist_remote) {
-            Ok(diff) => Ok(diff),
-            Err(err) => Err(err.to_string()),
-        },
+    match client.get_difflist().await {
+        Ok(diff) => Ok(diff),
         Err(err) => Err(err.to_string()),
     }
 }

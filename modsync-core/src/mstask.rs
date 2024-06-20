@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::{Path, PathBuf}, sync::Arc};
 
 use futures::StreamExt;
 use tokio::{fs::File, io::AsyncWriteExt, sync::Mutex, task::JoinHandle};
@@ -36,6 +36,9 @@ impl DownloadTask {
     }
 
     pub async fn spawn(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let path = Path::new(self.savepath.as_str()).parent().unwrap();
+        tokio::fs::create_dir_all(path).await?;
+
         let mut save_file = File::create(self.savepath.as_str()).await?;
 
         let resp = reqwest::get(self.url.as_str()).await?;

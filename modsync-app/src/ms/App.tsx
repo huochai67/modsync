@@ -21,6 +21,7 @@ type MSMOD = {
 }
 type MODDiff = {
   index: number,
+  kind: "PLAIN" | "MOD",
   name: string,
   local: MSMOD | null,
   remote: MSMOD | null,
@@ -39,7 +40,7 @@ function App() {
   function reload() {
     setisreloading(true);
     invoke<MODDiff[]>('get_diff').then((value) => {
-      setdifflist(value.map((value: MODDiff, index) => { return { index, name: value.name, local: value.local, remote: value.remote } }));
+      setdifflist(value.map((value: MODDiff, index) => { return { index, kind : value.kind, name: value.name, local: value.local, remote: value.remote } }));
       setisreloading(false);
       if (value.length == 0) {
         mb_info("no update");
@@ -176,7 +177,7 @@ function App() {
               setbtnStartStatus(true);
               let sendlist = new Array()
               selecteddiffs.forEach((value) => {
-                sendlist.push({ name: value.name, local: value.local, remote: value.remote });
+                sendlist.push({ kind: value.kind, name: value.name, local: value.local, remote: value.remote });
               })
               invoke<MODDiff[]>('apply_diff', {
                 diffs: sendlist,

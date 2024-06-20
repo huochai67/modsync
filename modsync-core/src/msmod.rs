@@ -15,7 +15,7 @@ pub struct ModMeta {
     pub mods: Vec<ModMetaMods>,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct MSMOD {
     pub md5: String,
     pub path: String,

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::{
     msconfig::MSConfig,
     msmod::MSMOD,
@@ -6,15 +8,23 @@ use crate::{
 };
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
+enum Kind {
+    PLAIN = 0,
+    MOD = 1,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct MODDiff {
+    pub kind: Kind,
     pub name: String,
     pub local: Option<MSMOD>,
     pub remote: Option<MSMOD>,
 }
 
 impl MODDiff {
-    pub fn new(name: String, local: Option<MSMOD>, remote: Option<MSMOD>) -> MODDiff {
+    pub fn new(kind: Kind, name: String, local: Option<MSMOD>, remote: Option<MSMOD>) -> MODDiff {
         MODDiff {
+            kind,
             name,
             local,
             remote,
@@ -37,20 +47,36 @@ impl MSClient<'_> {
         self
     }
 
-    pub async fn get_changelog(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn get_path(&self) -> String {
+        self.path.as_ref().expect("no path").clone()
+    }
+
+    pub async fn get_changelog(
+        &self,
+    ) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
         match &self.config.changelog_url {
-            Some(changelog_url) => http_get(changelog_url.as_str()).await,
-            None => Err(Box::from("config dont contain changelog url".to_string())),
+            Some(changelog_url) => Ok(Some(http_get(changelog_url.as_str()).await?)),
+            None => Ok(None),
         }
     }
     pub async fn get_modlist(
         &self,
-    ) -> Result<Vec<Option<MSMOD>>, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<Option<Vec<Option<MSMOD>>>, Box<dyn std::error::Error + Send + Sync>> {
         match &self.config.modlist_url {
-            Some(modlist_url) => Ok(serde_json::from_str(
+            Some(modlist_url) => Ok(Some(serde_json::from_str(
                 http_get(modlist_url.as_str()).await?.as_str(),
-            )?),
-            None => Err(Box::from("config dont contain modlist url".to_string())),
+            )?)),
+            None => Ok(None),
+        }
+    }
+    pub async fn get_necessary(
+        &self,
+    ) -> Result<Option<Vec<Option<MSMOD>>>, Box<dyn std::error::Error + Send + Sync>> {
+        match &self.config.necessary_url {
+            Some(necessary_url) => Ok(Some(serde_json::from_str(
+                http_get(necessary_url.as_str()).await?.as_str(),
+            )?)),
+            None => Ok(None),
         }
     }
     pub async fn get_option(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
@@ -95,71 +121,120 @@ impl MSClient<'_> {
         MSMOD::from_directory(modspath.as_str(), None)
     }
 
-    pub fn get_difflist(
-        &self,
+    pub fn get_difflist_with(
+        path: String,
+        _locallist: Vec<Option<MSMOD>>,
         remotelist: Vec<Option<MSMOD>>,
+        _necessarylist: Option<Vec<Option<MSMOD>>>,
     ) -> Result<Vec<MODDiff>, Box<dyn std::error::Error + Send>> {
+        let mut locallist = _locallist.clone();
         let mut ret: Vec<MODDiff> = vec![];
-        match self.get_modlist_local() {
-            Ok(mut locallist) => {
-                for remotemod_ in remotelist.iter() {
-                    let remotemod = remotemod_.as_ref().unwrap();
-
-                    let mut ok = false;
-                    for localmod_ in locallist.iter_mut() {
-                        if let Some(localmod) = localmod_.as_ref() {
-                            if localmod.md5 == remotemod.md5 {
-                                *localmod_ = None;
-                                ok = true;
-                                break;
-                            }
-
-                            if localmod.modid == remotemod.modid {
-                                ret.push(MODDiff::new(
-                                    remotemod.path.clone(),
-                                    Some(localmod_.as_ref().unwrap().clone()),
-                                    Some(remotemod.clone()),
-                                ));
-                                *localmod_ = None;
-                                ok = true;
-                                break;
-                            }
-
-                            if localmod.path == remotemod.path {
-                                ret.push(MODDiff::new(
-                                    remotemod.path.clone(),
-                                    Some(localmod_.as_ref().unwrap().clone()),
-                                    Some(remotemod.clone()),
-                                ));
-                                *localmod_ = None;
-                                ok = true;
-                                break;
-                            }
-                        }
-                    }
-                    if ok {
-                        continue;
+        for remotemod_ in remotelist.iter() {
+            let remotemod = remotemod_.as_ref().unwrap();
+            let mut ok = false;
+            for localmod_ in locallist.iter_mut() {
+                if let Some(localmod) = localmod_.as_ref() {
+                    if localmod.md5 == remotemod.md5 {
+                        *localmod_ = None;
+                        ok = true;
+                        break;
                     }
 
-                    ret.push(MODDiff::new(
-                        remotemod.path.clone(),
-                        None,
-                        Some(remotemod.clone()),
-                    ))
-                }
-
-                for localmod_ in locallist.iter() {
-                    if let Some(localmod) = localmod_ {
+                    if localmod.modid == remotemod.modid {
                         ret.push(MODDiff::new(
-                            localmod.path.clone(),
-                            Some(localmod.clone()),
-                            None,
-                        ))
+                            Kind::MOD,
+                            remotemod.path.clone(),
+                            Some(localmod_.as_ref().unwrap().clone()),
+                            Some(remotemod.clone()),
+                        ));
+                        *localmod_ = None;
+                        ok = true;
+                        break;
+                    }
+
+                    if localmod.path == remotemod.path {
+                        ret.push(MODDiff::new(
+                            Kind::MOD,
+                            remotemod.path.clone(),
+                            Some(localmod_.as_ref().unwrap().clone()),
+                            Some(remotemod.clone()),
+                        ));
+                        *localmod_ = None;
+                        ok = true;
+                        break;
                     }
                 }
-
-                Ok(ret)
             }
+            if ok {
+                continue;
+            }
+
+            ret.push(MODDiff::new(
+                Kind::MOD,
+                remotemod.path.clone(),
+                None,
+                Some(remotemod.clone()),
+            ))
+        }
+
+        for localmod_ in locallist.iter() {
+            if let Some(localmod) = localmod_ {
+                ret.push(MODDiff::new(
+                    Kind::MOD,
+                    localmod.path.clone(),
+                    Some(localmod.clone()),
+                    None,
+                ))
+            }
+        }
+
+        if let Some(necessarylist) = _necessarylist {
+            for _necessary in necessarylist.iter() {
+                let necessary = _necessary.as_ref().unwrap();
+                let localpathstr = format!("{}/{}", path.as_str(), necessary.path);
+                let localpath = Path::new(localpathstr.as_str());
+                if localpath.exists() {
+                    let localfile = MSMOD::from_file(localpath, path.as_str(), None);
+                    if localfile.md5 != necessary.md5 {
+                        ret.push(MODDiff::new(
+                            Kind::PLAIN,
+                            necessary.path.clone(),
+                            Some(localfile),
+                            _necessary.clone(),
+                        ));
+                    };
+                    continue;
+                }
+                ret.push(MODDiff::new(
+                    Kind::PLAIN,
+                    necessary.path.clone(),
+                    None,
+                    _necessary.clone(),
+                ))
+            }
+        }
+
+        Ok(ret)
+    }
+
+    pub async fn get_difflist(&self) -> Result<Vec<MODDiff>, Box<dyn std::error::Error + Send>> {
+        let modlist_local = self.get_modlist_local()?;
+        match self.get_modlist().await {
+            Ok(_modlist_remote) => match _modlist_remote {
+                Some(modlist_remote) => {
+                    let necessarylist = match self.get_necessary().await {
+                        Ok(necessarylist) => necessarylist,
+                        Err(_) => None,
+                    };
+                    Self::get_difflist_with(
+                        self.get_path(),
+                        modlist_local,
+                        modlist_remote,
+                        necessarylist,
+                    )
+                }
+                None => panic!("no modlist in config"),
+            },
             Err(err) => Err(err),
         }
     }
@@ -167,24 +242,45 @@ impl MSClient<'_> {
     pub fn apply_diff(&self, diffs: &[MODDiff]) -> Vec<DownloadTask> {
         let mut tasks: Vec<DownloadTask> = vec![];
         for diff in diffs {
-            if let Some(local) = &diff.local {
-                let _ = std::fs::remove_file(format!(
-                    "{}/mods/{}",
-                    self.path.as_ref().unwrap().as_str(),
-                    local.path.as_str()
-                ));
-            }
+            match diff.kind {
+                Kind::PLAIN => {
+                    if let Some(local) = &diff.local {
+                        let _ = std::fs::remove_file(format!(
+                            "{}/{}",
+                            self.path.as_ref().unwrap().as_str(),
+                            local.path.as_str()
+                        ));
+                    }
 
-            if let Some(remote) = &diff.remote {
-                tasks.push(DownloadTask::build(
-                    diff.name.clone(),
-                    remote.url.as_ref().unwrap().clone(),
-                    format!(
-                        "{}/mods/{}",
-                        self.path.as_ref().unwrap(),
-                        remote.path.as_str()
-                    ),
-                ));
+                    if let Some(remote) = &diff.remote {
+                        tasks.push(DownloadTask::build(
+                            diff.name.clone(),
+                            remote.url.as_ref().unwrap().clone(),
+                            format!("{}/{}", self.path.as_ref().unwrap(), remote.path.as_str()),
+                        ));
+                    }
+                }
+                Kind::MOD => {
+                    if let Some(local) = &diff.local {
+                        let _ = std::fs::remove_file(format!(
+                            "{}/mods/{}",
+                            self.path.as_ref().unwrap().as_str(),
+                            local.path.as_str()
+                        ));
+                    }
+
+                    if let Some(remote) = &diff.remote {
+                        tasks.push(DownloadTask::build(
+                            diff.name.clone(),
+                            remote.url.as_ref().unwrap().clone(),
+                            format!(
+                                "{}/mods/{}",
+                                self.path.as_ref().unwrap(),
+                                remote.path.as_str()
+                            ),
+                        ));
+                    }
+                }
             }
         }
         tasks
