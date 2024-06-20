@@ -37,6 +37,9 @@ function App() {
             .catch(error => {
               mb_error(error);
             })
+        } else {
+          setChangelog("");
+          setisreload(false);
         }
       })
       .catch(error => {
@@ -49,7 +52,7 @@ function App() {
     <main className="w-screen h-screen rounded-xl border-4">
       <div className="flex flex-col h-full divide-y-4">
         <div className="grow overflow-auto">
-          <TextareaAutosize className="h-full w-full " value={changelog} readOnly/>
+          <TextareaAutosize className="h-full w-full " readOnly={false} value={changelog} onChange={(e) => { setChangelog((c) => c + (e.nativeEvent as InputEvent).data) }} />
         </div>
         <div className="flex flex-row space-x-2">
           <TextField className="w-full" label="ServerUrl" variant="filled" value={serverurl} onChange={(e) => { setserverurl(e.target.value) }} />

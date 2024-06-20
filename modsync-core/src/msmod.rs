@@ -61,11 +61,11 @@ impl MSMOD {
         let size = file.read_to_end(&mut buffer).unwrap();
 
         let strfilepath = filepath.as_os_str().to_str().unwrap().to_string();
-        let strpath = &strfilepath[parentpath.len() + 1..];
+        let strpath = &strfilepath[parentpath.len() + 1..].replace('\\', "/");
 
         let digest = md5::compute(buffer);
         let url = match serverurl {
-            Some(su) => Some(format!("{}data/mods/{}", su, strpath)),
+            Some(su) => Some(format!("{}{}", su, strpath)),
             None => None,
         };
 
