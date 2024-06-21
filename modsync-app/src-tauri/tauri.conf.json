@@ -12,8 +12,10 @@
     "windows": [
       {
         "title": "modsync-app",
-        "width": 800,
-        "height": 600
+        "width": 977,
+        "height": 550,
+        "minWidth": 977,
+        "minHeight": 550
       }
     ],
     "security": {
