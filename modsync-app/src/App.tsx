@@ -7,7 +7,7 @@ import { Cog6ToothIcon, MoonIcon, ServerStackIcon, Square2StackIcon, SunIcon } f
 import { useTranslation } from 'react-i18next';
 
 import { mb_error, mb_info } from './messagebox';
-import { Divider } from '@nextui-org/react';
+import { Divider, Snippet } from '@nextui-org/react';
 import "./global.css";
 import { getConfig, setConfig } from './config';
 import "./i18n"
@@ -87,11 +87,12 @@ function App() {
       </div>
       <Divider />
       <div className="flex h-14">
-        <div className='flex items-center'>
+        <div className='flex items-center space-x-2'>
           <Button size='sm' variant='light' isIconOnly aria-label="Dark" onClick={() => {
             setConfig({ darkmode: !dark });
             setdark((d) => !d);
           }}>{dark ? <SunIcon /> : <MoonIcon />}</Button>
+          <Snippet>https://github.com/huochai67/modsync</Snippet>
         </div>
         <div className="grow" />
         <div className='w-[50vw] flex items-center justify-end'>
