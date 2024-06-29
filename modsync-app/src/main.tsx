@@ -27,10 +27,10 @@ function App() {
     }
     return (
         <main className={clsx("w-screen h-screen flex flex-col divide-background border-background text-foreground bg-background", { "dark": dark })}>
-            <div className=" h-[5vh]">
+            <div className="h-[5vh]">
                 <TitleBar dark={dark} onDarkChanged={() => { setConfig({ darkmode: !dark }); setdark((d) => !d) }} />
             </div>
-            <div className="grow"><Body /></div>
+            <div className="grow h-max-[95vh]"><Body /></div>
         </main>
     )
 }

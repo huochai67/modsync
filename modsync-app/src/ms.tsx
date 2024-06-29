@@ -141,7 +141,7 @@ export function Page() {
 
   return (
     <div className="flex flex-col h-full border-4 divide-y-4 divide-background border-background text-foreground bg-background">
-      <div className="grow w-full overflow-auto">
+      <div className="grow w-full max-h-[83vh] overflow-auto">
         <Table aria-label="Difflist table"
           selectionMode="multiple"
           selectedKeys={selectedKeys}
