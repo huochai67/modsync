@@ -1,14 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
 import { Window } from '@tauri-apps/api/window'
 import { Button, ButtonGroup } from "@nextui-org/button";
-import { useEffect, useMemo, useState } from 'react';
-import clsx from "clsx";
-import { Cog6ToothIcon, MoonIcon, ServerStackIcon, Square2StackIcon, SunIcon } from '@heroicons/react/24/solid';
+import { useEffect, useState } from 'react';
+import { Cog6ToothIcon, ServerStackIcon, Square2StackIcon } from '@heroicons/react/24/solid';
 import { useTranslation } from 'react-i18next';
 
 import { mb_error, mb_info } from './utils/messagebox';
 import { Divider, Snippet } from '@nextui-org/react';
-import { getConfig, setConfig } from './utils/config';
 import "./utils/i18n"
 
 import "./global.css";
@@ -55,11 +53,6 @@ function BTNShowConfict() {
 }
 
 export function Page() {
-  const [dark, setdark] = useState(false);
-  useMemo(() => {
-    setdark(getConfig().darkmode);
-  }, []);
-
   const [changelog, setChangelog] = useState('CHANGELOG');
   const [init, setinit] = useState(false);
 
@@ -82,17 +75,13 @@ export function Page() {
   }, []);
 
   return (
-    <div className={clsx("flex flex-col h-full border-4 divide-y-4 divide-background border-background text-foreground bg-background", { "dark": dark })}>
+    <div className="flex flex-col h-full border-4 divide-y-4  divide-background border-background text-foreground bg-background">
       <div className="grow w-full">
         <textarea className="h-full w-full resize-none" value={changelog} readOnly />
       </div>
       <Divider />
       <div className="flex h-14">
         <div className='flex items-center space-x-2'>
-          <Button size='sm' variant='light' isIconOnly aria-label="Dark" onClick={() => {
-            setConfig({ darkmode: !dark });
-            setdark((d) => !d);
-          }}>{dark ? <SunIcon /> : <MoonIcon />}</Button>
           <Snippet>https://github.com/huochai67/modsync</Snippet>
         </div>
         <div className="grow" />
