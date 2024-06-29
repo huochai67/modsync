@@ -33,7 +33,7 @@ function BTNSyncServerList() {
     <Button endContent={<Cog6ToothIcon className='size-4' />} isLoading={!okstate} onClick={() => {
       setOkState(false);
       invoke('download_options').then(() => {
-        { t('SYNCOPTIONSDONE') }
+        mb_info(t('SYNCOPTIONSDONE'));
         setOkState(true);
       }).catch(mb_error);
     }}>
