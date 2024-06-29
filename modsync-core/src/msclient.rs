@@ -1,9 +1,9 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::{
     msconfig::MSConfig,
     msmod::MSMOD,
-    mstask::DownloadTask,
+    mstask::{DeleteTask, DownloadTask, MSTask},
     utils::{http_download, http_get},
 };
 
@@ -239,38 +239,44 @@ impl MSClient<'_> {
         }
     }
 
-    pub fn apply_diff(&self, diffs: &[MODDiff]) -> Vec<DownloadTask> {
-        let mut tasks: Vec<DownloadTask> = vec![];
+    pub fn apply_diff(&self, diffs: &[MODDiff]) -> Vec<Box<dyn MSTask + Send + Sync>> {
+        let mut tasks: Vec<Box<dyn MSTask + Send + Sync>> = vec![];
         for diff in diffs {
             match diff.kind {
                 Kind::PLAIN => {
                     if let Some(local) = &diff.local {
-                        let _ = std::fs::remove_file(format!(
-                            "{}/{}",
-                            self.path.as_ref().unwrap().as_str(),
-                            local.path.as_str()
-                        ));
+                        tasks.push(Box::new(DeleteTask::build(
+                            diff.name.clone(),
+                            PathBuf::from(format!(
+                                "{}/{}",
+                                self.path.as_ref().unwrap().as_str(),
+                                local.path.as_str()
+                            )),
+                        )));
                     }
 
                     if let Some(remote) = &diff.remote {
-                        tasks.push(DownloadTask::build(
+                        tasks.push(Box::new(DownloadTask::build(
                             diff.name.clone(),
                             remote.url.as_ref().unwrap().clone(),
                             format!("{}/{}", self.path.as_ref().unwrap(), remote.path.as_str()),
-                        ));
+                        )));
                     }
                 }
                 Kind::MOD => {
                     if let Some(local) = &diff.local {
-                        let _ = std::fs::remove_file(format!(
-                            "{}/mods/{}",
-                            self.path.as_ref().unwrap().as_str(),
-                            local.path.as_str()
-                        ));
+                        tasks.push(Box::new(DeleteTask::build(
+                            diff.name.clone(),
+                            PathBuf::from(format!(
+                                "{}/mods/{}",
+                                self.path.as_ref().unwrap().as_str(),
+                                local.path.as_str()
+                            )),
+                        )));
                     }
 
                     if let Some(remote) = &diff.remote {
-                        tasks.push(DownloadTask::build(
+                        tasks.push(Box::new(DownloadTask::build(
                             diff.name.clone(),
                             remote.url.as_ref().unwrap().clone(),
                             format!(
@@ -278,7 +284,7 @@ impl MSClient<'_> {
                                 self.path.as_ref().unwrap(),
                                 remote.path.as_str()
                             ),
-                        ));
+                        )));
                     }
                 }
             }

@@ -1,19 +1,17 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::Arc;
-
 use modsync_core::{
     msclient::{MODDiff, MSClient},
     msconfig::MSConfig,
-    mstask::{DownloadTask, MSTask},
+    mstask::MSTask,
 };
 use tokio::sync::Mutex;
 
 struct MSNextRunTime {
     config: Mutex<Option<MSConfig>>,
     changelog: Mutex<Option<String>>,
-    tasks: Mutex<Vec<Arc<DownloadTask>>>,
+    tasks: Mutex<Vec<Box<dyn MSTask + Send + Sync>>>,
 }
 
 impl MSNextRunTime {
@@ -151,7 +149,7 @@ async fn apply_diff(
         .apply_diff(diffs.as_slice());
     for mut task in vec_task {
         match task.spawn().await {
-            Ok(_) => msntasks.push(Arc::from(task)),
+            Ok(_) => msntasks.push(task),
             Err(err) => {
                 return Err(err.to_string());
             }

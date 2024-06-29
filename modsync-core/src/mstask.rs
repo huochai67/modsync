@@ -1,13 +1,20 @@
-use std::{path::{Path, PathBuf}, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
+use async_trait::async_trait;
 use futures::StreamExt;
 use tokio::{fs::File, io::AsyncWriteExt, sync::Mutex, task::JoinHandle};
 
+#[async_trait]
 pub trait MSTask {
     async fn get_size_downloaded(&self) -> u64;
     fn get_size_total(&self) -> u64;
     fn get_name(&self) -> &str;
     fn get_join_handle(&self) -> &JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>;
+
+    async fn spawn(&mut self) -> Result<(), Box<dyn std::error::Error>>;
 }
 
 pub struct DownloadTask {
@@ -16,15 +23,11 @@ pub struct DownloadTask {
     joinhandle: Option<JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>>,
     name: String,
     url: String,
-    savepath : String,
+    savepath: String,
 }
 
 impl DownloadTask {
-    pub fn build(
-        name: String,
-        url: String,
-        savepath : String,
-    ) -> DownloadTask {
+    pub fn build(name: String, url: String, savepath: String) -> DownloadTask {
         DownloadTask {
             totalsize: 0,
             downloadedsize: Arc::from(Mutex::new(0)),
@@ -34,8 +37,25 @@ impl DownloadTask {
             joinhandle: None,
         }
     }
+}
 
-    pub async fn spawn(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+#[async_trait]
+impl MSTask for DownloadTask {
+    async fn get_size_downloaded(&self) -> u64 {
+        self.downloadedsize.lock().await.clone()
+    }
+    fn get_size_total(&self) -> u64 {
+        self.totalsize.clone()
+    }
+    fn get_join_handle(&self) -> &JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>> {
+        self.joinhandle.as_ref().unwrap()
+    }
+
+    fn get_name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    async fn spawn(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let path = Path::new(self.savepath.as_str()).parent().unwrap();
         tokio::fs::create_dir_all(path).await?;
 
@@ -63,22 +83,6 @@ impl DownloadTask {
     }
 }
 
-impl MSTask for DownloadTask {
-    async fn get_size_downloaded(&self) -> u64 {
-        self.downloadedsize.lock().await.clone()
-    }
-    fn get_size_total(&self) -> u64 {
-        self.totalsize.clone()
-    }
-    fn get_join_handle(&self) -> &JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>> {
-        self.joinhandle.as_ref().unwrap()
-    }
-
-    fn get_name(&self) -> &str {
-        self.name.as_str()
-    }
-}
-
 pub struct DeleteTask {
     path: Option<PathBuf>,
     name: String,
@@ -86,26 +90,16 @@ pub struct DeleteTask {
 }
 
 impl DeleteTask {
-    pub fn build(name: String, path: PathBuf) -> Result<DeleteTask, Box<dyn std::error::Error>> {
-        Ok(DeleteTask {
+    pub fn build(name: String, path: PathBuf) -> DeleteTask {
+        DeleteTask {
             path: Some(path),
             name,
             joinhandle: None,
-        })
-    }
-
-    fn spawn(&mut self) {
-        let path = self.path.take().unwrap();
-        let jg = tokio::spawn(async move {
-            match std::fs::remove_file(path) {
-                Ok(_) => Ok(()),
-                Err(_) => Err(Box::from("123")),
-            }
-        });
-        self.joinhandle = Some(jg);
+        }
     }
 }
 
+#[async_trait]
 impl MSTask for DeleteTask {
     async fn get_size_downloaded(&self) -> u64 {
         1
@@ -121,5 +115,16 @@ impl MSTask for DeleteTask {
 
     fn get_join_handle(&self) -> &JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>> {
         self.joinhandle.as_ref().unwrap()
+    }
+
+    async fn spawn(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let path = self.path.take().unwrap();
+        self.joinhandle = Some(tokio::spawn(async move {
+            match std::fs::remove_file(path) {
+                Ok(_) => Ok(()),
+                Err(err) => Err(Box::from(err)),
+            }
+        }));
+        Ok(())
     }
 }

@@ -2257,6 +2257,7 @@ dependencies = [
 name = "modsync-core"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "futures",
  "md5",
  "reqwest 0.11.27",
