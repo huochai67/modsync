@@ -6,11 +6,12 @@ import clsx from "clsx";
 import { Cog6ToothIcon, MoonIcon, ServerStackIcon, Square2StackIcon, SunIcon } from '@heroicons/react/24/solid';
 import { useTranslation } from 'react-i18next';
 
-import { mb_error, mb_info } from './messagebox';
+import { mb_error, mb_info } from './utils/messagebox';
 import { Divider, Snippet } from '@nextui-org/react';
+import { getConfig, setConfig } from './utils/config';
+import "./utils/i18n"
+
 import "./global.css";
-import { getConfig, setConfig } from './config';
-import "./i18n"
 
 
 function BTNSyncServerList() {
@@ -34,7 +35,7 @@ function BTNSyncServerList() {
     <Button endContent={<Cog6ToothIcon className='size-4' />} isLoading={!okstate} onClick={() => {
       setOkState(false);
       invoke('download_options').then(() => {
-        {t('SYNCOPTIONSDONE')}
+        { t('SYNCOPTIONSDONE') }
         setOkState(true);
       }).catch(mb_error);
     }}>
@@ -53,7 +54,7 @@ function BTNShowConfict() {
   );
 }
 
-function App() {
+export function Page() {
   const [dark, setdark] = useState(false);
   useMemo(() => {
     setdark(getConfig().darkmode);
@@ -107,4 +108,4 @@ function App() {
   );
 }
 
-export default App;
+export default Page;

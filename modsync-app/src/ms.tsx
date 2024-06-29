@@ -6,9 +6,10 @@ import { ArrowLeftIcon, ArrowPathIcon, CheckIcon } from '@heroicons/react/24/sol
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 
-import { mb_error, mb_info } from "../messagebox";
-import "../global.css";
-import "../i18n"
+import { mb_error, mb_info } from "./utils/messagebox";
+import "./utils/i18n"
+
+import "./global.css";
 
 
 type MSMOD = {
@@ -31,7 +32,7 @@ function backtohome() {
   window.location.replace('/')
 }
 
-function App() {
+export function Page() {
   const { t } = useTranslation();
   const [difflist, setdifflist] = useState(new Array<MODDiff>());
   const [isreloading, setisreloading] = React.useState(true);
@@ -193,4 +194,4 @@ function App() {
   );
 }
 
-export default App;
+export default Page;

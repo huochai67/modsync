@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
 import { Listbox, ListboxItem, Progress } from "@nextui-org/react";
 import { useTranslation } from 'react-i18next';
-import { mb_error, mb_info } from "../messagebox";
-import "../global.css";
-import "../i18n"
+import { mb_error, mb_info } from "./utils/messagebox";
+import "./utils/i18n"
+
+import "./global.css";
 
 type TaskInfo = {
     totalsize: number,
@@ -16,7 +17,7 @@ function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function App() {
+export function Page() {
     const { t } = useTranslation();
     const [tasklist, settasklist] = useState(new Array<TaskInfo>());
 
@@ -49,4 +50,4 @@ function App() {
     );
 }
 
-export default App;
+export default Page;
