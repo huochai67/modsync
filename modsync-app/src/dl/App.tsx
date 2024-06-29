@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
-import { mb_error, mb_info } from "../messagebox";
 import { Listbox, ListboxItem, Progress } from "@nextui-org/react";
+import { useTranslation } from 'react-i18next';
+import { mb_error, mb_info } from "../messagebox";
 import "../global.css";
+import "../i18n"
 
 type TaskInfo = {
     totalsize: number,
@@ -15,6 +17,7 @@ function sleep(ms: number) {
 }
 
 function App() {
+    const { t } = useTranslation();
     const [tasklist, settasklist] = useState(new Array<TaskInfo>());
 
     function fetchtasks() {
@@ -22,7 +25,7 @@ function App() {
             settasklist(value);
             sleep(50).then(() => {
                 if (value.length == 0) {
-                    mb_info("done!");
+                    mb_info(t("DONE"));
                     window.location.replace('/')
                 } else {
                     fetchtasks()

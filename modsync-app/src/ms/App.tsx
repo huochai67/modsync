@@ -43,7 +43,7 @@ function App() {
       setdifflist(value.map((value: MODDiff, index) => { return { index, kind : value.kind, name: value.name, local: value.local, remote: value.remote } }));
       setisreloading(false);
       if (value.length == 0) {
-        mb_info("no update");
+        mb_info(t("NOUPDATE"));
         backtohome();
       }
     }).catch(mb_error);

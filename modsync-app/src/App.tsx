@@ -20,7 +20,7 @@ function BTNSyncServerList() {
     <Button endContent={<ServerStackIcon className='size-4' />} isLoading={!okstate} onClick={() => {
       setOkState(false);
       invoke('download_serverlist').then(() => {
-        mb_info("ok");
+        mb_info(t('SYNCMPLDONE'));
         setOkState(true);
       }).catch(mb_error);
     }}>
@@ -34,7 +34,7 @@ function BTNSyncServerList() {
     <Button endContent={<Cog6ToothIcon className='size-4' />} isLoading={!okstate} onClick={() => {
       setOkState(false);
       invoke('download_options').then(() => {
-        mb_info("ok");
+        {t('SYNCOPTIONSDONE')}
         setOkState(true);
       }).catch(mb_error);
     }}>
