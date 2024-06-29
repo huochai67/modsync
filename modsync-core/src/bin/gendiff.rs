@@ -11,14 +11,10 @@ async fn main() {
     if let Ok(locallist) = client2.get_modlist_local() {
         println!("{:?}", locallist);
     }
-
-    match client2.get_modlist().await {
-        Ok(modlist) => match client2.get_difflist(modlist) {
-            Ok(difflist) => {
-                println!("{:?}", difflist);
-            }
-            Err(err) => panic!("{}", err),
-        },
+    match client2.get_difflist().await {
+        Ok(difflist) => {
+            println!("{:?}", difflist);
+        }
         Err(err) => panic!("{}", err),
     }
 
