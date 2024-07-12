@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::{
     msconfig::MSConfig,
@@ -8,7 +8,7 @@ use crate::{
 };
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-enum Kind {
+pub enum Kind {
     PLAIN = 0,
     MOD = 1,
 }
@@ -239,56 +239,39 @@ impl MSClient<'_> {
         }
     }
 
-    pub fn apply_diff(&self, diffs: &[MODDiff]) -> Vec<Box<dyn MSTask + Send + Sync>> {
+    pub async fn apply_diff(
+        &self,
+        diffs: &[MODDiff],
+    ) -> Result<Vec<Box<dyn MSTask + Send + Sync>>, Box<dyn std::error::Error + Send>> {
         let mut tasks: Vec<Box<dyn MSTask + Send + Sync>> = vec![];
+        let client = reqwest::Client::new();
         for diff in diffs {
-            match diff.kind {
-                Kind::PLAIN => {
-                    if let Some(local) = &diff.local {
-                        tasks.push(Box::new(DeleteTask::build(
-                            diff.name.clone(),
-                            PathBuf::from(format!(
-                                "{}/{}",
-                                self.path.as_ref().unwrap().as_str(),
-                                local.path.as_str()
-                            )),
-                        )));
-                    }
+            let modpath = if let Some(localmod) = &diff.local {
+                localmod.path.as_ref()
+            } else if let Some(remotemod) = &diff.remote {
+                remotemod.path.as_ref()
+            } else {
+                panic!("apply a moddiff which dont contain a vaild modinfo");
+                #[allow(unreachable_code)]
+                ""
+            };
+            let fullpath = match diff.kind {
+                Kind::PLAIN => format!("{}/{}", self.path.as_ref().unwrap().as_str(), modpath),
+                Kind::MOD => format!("{}/mods/{}", self.path.as_ref().unwrap().as_str(), modpath),
+            };
 
-                    if let Some(remote) = &diff.remote {
-                        tasks.push(Box::new(DownloadTask::build(
-                            diff.name.clone(),
-                            remote.url.as_ref().unwrap().clone(),
-                            format!("{}/{}", self.path.as_ref().unwrap(), remote.path.as_str()),
-                        )));
-                    }
-                }
-                Kind::MOD => {
-                    if let Some(local) = &diff.local {
-                        tasks.push(Box::new(DeleteTask::build(
-                            diff.name.clone(),
-                            PathBuf::from(format!(
-                                "{}/mods/{}",
-                                self.path.as_ref().unwrap().as_str(),
-                                local.path.as_str()
-                            )),
-                        )));
-                    }
-
-                    if let Some(remote) = &diff.remote {
-                        tasks.push(Box::new(DownloadTask::build(
-                            diff.name.clone(),
-                            remote.url.as_ref().unwrap().clone(),
-                            format!(
-                                "{}/mods/{}",
-                                self.path.as_ref().unwrap(),
-                                remote.path.as_str()
-                            ),
-                        )));
-                    }
-                }
+            if let Some(_local) = &diff.local {
+                tasks.push(Box::new(DeleteTask::build(diff.name.clone(), fullpath.into())));
+            } else if let Some(remote) = &diff.remote {
+                let cc: reqwest::Client = client.clone();
+                tasks.push(Box::new(DownloadTask::build(
+                    cc,
+                    diff.name.clone(),
+                    remote.url.as_ref().unwrap().clone(),
+                    fullpath,
+                )));
             }
         }
-        tasks
+        Ok(tasks)
     }
 }

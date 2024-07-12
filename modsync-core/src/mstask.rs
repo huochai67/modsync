@@ -18,6 +18,7 @@ pub trait MSTask {
 }
 
 pub struct DownloadTask {
+    reqclient: reqwest::Client,
     totalsize: u64,
     downloadedsize: Arc<Mutex<u64>>,
     joinhandle: Option<JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>>,
@@ -27,8 +28,14 @@ pub struct DownloadTask {
 }
 
 impl DownloadTask {
-    pub fn build(name: String, url: String, savepath: String) -> DownloadTask {
+    pub fn build(
+        reqclient: reqwest::Client,
+        name: String,
+        url: String,
+        savepath: String,
+    ) -> DownloadTask {
         DownloadTask {
+            reqclient,
             totalsize: 0,
             downloadedsize: Arc::from(Mutex::new(0)),
             name,
@@ -61,7 +68,7 @@ impl MSTask for DownloadTask {
 
         let mut save_file = File::create(self.savepath.as_str()).await?;
 
-        let resp = reqwest::get(self.url.as_str()).await?;
+        let resp = self.reqclient.get(self.url.as_str()).send().await?;
         self.totalsize = match resp.content_length() {
             Some(ts) => ts,
             None => 0,
@@ -101,12 +108,14 @@ impl DeleteTask {
 
 #[async_trait]
 impl MSTask for DeleteTask {
+    #[allow(unreachable_code)]
     async fn get_size_downloaded(&self) -> u64 {
-        1
+        !todo!()
     }
 
+    #[allow(unreachable_code)]
     fn get_size_total(&self) -> u64 {
-        1
+        !todo!()
     }
 
     fn get_name(&self) -> &str {

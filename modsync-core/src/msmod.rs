@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use toml::{value::Array, Table};
+#[allow(non_snake_case)]
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct ModMetaMods {
     pub modId: String,

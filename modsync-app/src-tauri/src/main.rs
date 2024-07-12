@@ -144,9 +144,16 @@ async fn apply_diff(
     }
     let mut msntasks = msnruntime.tasks.lock().await;
 
-    let vec_task = MSClient::config(msnruntime.getconfig().await.as_ref().unwrap())
+    let vec_task = match MSClient::config(msnruntime.getconfig().await.as_ref().unwrap())
         .path(getdotminecraft())
-        .apply_diff(diffs.as_slice());
+        .apply_diff(diffs.as_slice())
+        .await
+    {
+        Ok(tasks) => tasks,
+        Err(err) => {
+            return Err(err.to_string());
+        }
+    };
     for mut task in vec_task {
         match task.spawn().await {
             Ok(_) => msntasks.push(task),
