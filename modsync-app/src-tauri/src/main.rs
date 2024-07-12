@@ -205,7 +205,7 @@ fn get_version() -> String{
 
 #[tauri::command]
 fn get_buildinfo() -> String{
-    build_info::format!("{} v{} built with {} at {}", $.crate_info.name, $.crate_info.version, $.compiler, $.timestamp).into()
+    build_info::format!("{} {} {} at {}", $.crate_info.name, $.target.os, $.version_control.unwrap().git().unwrap().commit_short_id, $.timestamp).into()
 }
 
 fn main() {
