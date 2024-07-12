@@ -198,6 +198,16 @@ async fn get_tasks(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<Vec<Ta
     Ok(ret)
 }
 
+#[tauri::command]
+fn get_version() -> String{
+    build_info::format!("v{}", $.crate_info.version).into()
+}
+
+#[tauri::command]
+fn get_buildinfo() -> String{
+    build_info::format!("{} v{} built with {} at {}", $.crate_info.name, $.crate_info.version, $.compiler, $.timestamp).into()
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
@@ -209,6 +219,8 @@ fn main() {
             tasks: Default::default(),
         })
         .invoke_handler(tauri::generate_handler![
+            get_version,
+            get_buildinfo,
             get_diff,
             get_tasks,
             apply_diff,
