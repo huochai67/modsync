@@ -1,13 +1,15 @@
 import { MinusIcon, MoonIcon, SunIcon, XMarkIcon } from "@heroicons/react/24/solid";
-import { Button } from "@nextui-org/react";
+import { Button, ButtonGroup } from "@nextui-org/react";
 import { getCurrent } from "@tauri-apps/api/window";
 
 export function TitleBar({ dark, onDarkChanged }: { dark: boolean, onDarkChanged: (() => void) }) {
     return (
         <div data-tauri-drag-region className="flex flex-row-reverse items-center h-full">
-            <Button aria-label="close" isIconOnly size="sm" variant="light" onClick={() => { getCurrent().close() }} endContent={<XMarkIcon />} />
-            <Button aria-label="close" isIconOnly size="sm" variant="light" onClick={() => { getCurrent().minimize() }} endContent={<MinusIcon />} />
-            <Button size='sm' variant='light' isIconOnly aria-label="Dark" onClick={onDarkChanged}>{dark ? <SunIcon /> : <MoonIcon />}</Button>
+            <ButtonGroup variant="light" size="sm">
+                <Button isIconOnly aria-label="tb-darkmode" onClick={onDarkChanged}>{dark ? <SunIcon /> : <MoonIcon />}</Button>
+                <Button isIconOnly aria-label="tb-minus" onClick={() => { getCurrent().minimize() }}><MinusIcon /></Button>
+                <Button isIconOnly aria-label="tb-close" onClick={() => { getCurrent().close() }}><XMarkIcon /></Button>
+            </ButtonGroup>
         </div>
     )
 }

@@ -22,11 +22,23 @@ type MSMOD = {
 }
 type MODDiff = {
   index: number,
-  kind: "PLAIN" | "MOD",
+  kind: string,
   name: string,
   local: MSMOD | null,
   remote: MSMOD | null,
 }
+const emptydata = [
+  {index: 1, kind: "PLAIN", name: "", local: null, remote: null},
+  {index: 2, kind: "PLAIN", name: "", local: null, remote: null},
+  {index: 3, kind: "PLAIN", name: "", local: null, remote: null},
+  {index: 4, kind: "PLAIN", name: "", local: null, remote: null},
+  {index: 5, kind: "PLAIN", name: "", local: null, remote: null},
+  {index: 6, kind: "PLAIN", name: "", local: null, remote: null},
+  {index: 7, kind: "PLAIN", name: "", local: null, remote: null},
+  {index: 8, kind: "PLAIN", name: "", local: null, remote: null},
+  {index: 9, kind: "PLAIN", name: "", local: null, remote: null},
+  {index: 10, kind: "PLAIN", name: "", local: null, remote: null},
+]
 
 function backtohome() {
   window.location.replace('/')
@@ -34,14 +46,16 @@ function backtohome() {
 
 export function Page() {
   const { t } = useTranslation();
-  const [difflist, setdifflist] = useState(new Array<MODDiff>());
+  const [difflist, setdifflist] = useState<MODDiff[]>(emptydata);
   const [isreloading, setisreloading] = React.useState(true);
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>('all');
   const [btnStartStatus, setbtnStartStatus] = React.useState(false);
   function reload() {
     setisreloading(true);
     invoke<MODDiff[]>('get_diff').then((value) => {
+      setdifflist(() => []);
       setdifflist(value.map((value: MODDiff, index) => { return { index, kind : value.kind, name: value.name, local: value.local, remote: value.remote } }));
+      console.log(difflist)
       setisreloading(false);
       if (value.length == 0) {
         mb_info(t("NOUPDATE"));
