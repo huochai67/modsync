@@ -54,7 +54,7 @@ export function Page() {
     setisreloading(true);
     invoke<MODDiff[]>('get_diff').then((value) => {
       setdifflist(() => []);
-      setdifflist(value.map((value: MODDiff, index) => { return { index, kind : value.kind, name: value.name, local: value.local, remote: value.remote } }));
+      setdifflist(value.map((value: MODDiff, index) => { return { index, kind: value.kind, name: value.name, local: value.local, remote: value.remote } }));
       console.log(difflist)
       setisreloading(false);
       if (value.length == 0) {
@@ -126,7 +126,7 @@ export function Page() {
         return (
           <div className="flex flex-row space-x-2">
             <Chip size="sm" className="h-5 text-center" classNames={{ content: "w-14" }} color={red ? "danger" : "primary"}>{clip}</Chip >
-            <Tooltip placement="top-start" content={lable} delay={1000}><p className={clsx("flex items-center w-[30vw] overflow-hidden text-nowrap", { "text-red-700": red })}>{lable}</p></Tooltip>
+            <Tooltip placement="top-start" content={lable} delay={1000}><p className={clsx("flex items-center w-[30vw] overflow-hidden text-nowrap", { "text-red-700": red })}>{lable !== null ? lable : t("NONE")}</p></Tooltip>
           </div>
         )
       }
@@ -155,7 +155,7 @@ export function Page() {
 
   return (
     <div className="flex flex-col h-full border-4 divide-y-4 divide-background border-background text-foreground bg-background">
-      <div className={clsx("grow w-full max-h-[83vh]", {"overflow-auto" : !isreloading, "overflow-hidden" : isreloading})}>
+      <div className={clsx("grow w-full max-h-[83vh]", { "overflow-auto": !isreloading, "overflow-hidden": isreloading })}>
         <Table aria-label="Difflist table"
           selectionMode="multiple"
           selectedKeys={selectedKeys}
