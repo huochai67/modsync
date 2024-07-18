@@ -20,9 +20,9 @@ export function TitleBar({ dark, onDarkChanged }: { dark: boolean, onDarkChanged
             </Tooltip>
             <div className="grow" />
             <ButtonGroup variant="light" size="sm">
-                <Button isIconOnly aria-label="tb-darkmode" onClick={onDarkChanged}>{dark ? <SunIcon /> : <MoonIcon />}</Button>
-                <Button isIconOnly aria-label="tb-minus" onClick={() => { getCurrent().minimize() }}><MinusIcon /></Button>
-                <Button isIconOnly aria-label="tb-close" onClick={() => { getCurrent().close() }}><XMarkIcon /></Button>
+                <Button isIconOnly aria-label="tb-darkmode" onClick={onDarkChanged}>{dark ? <SunIcon className="size-6" /> : <MoonIcon className="size-6" />}</Button>
+                <Button isIconOnly aria-label="tb-minus" onClick={() => { getCurrent().minimize() }}><MinusIcon className="size-6" /></Button>
+                <Button isIconOnly aria-label="tb-close" onClick={() => { getCurrent().close() }}><XMarkIcon className="size-6" /></Button>
             </ButtonGroup>
         </div>
     )

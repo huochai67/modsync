@@ -126,18 +126,20 @@ export function Page() {
         return (
           <div className="flex flex-row space-x-2">
             <Chip size="sm" className="h-5 text-center" classNames={{ content: "w-14" }} color={red ? "danger" : "primary"}>{clip}</Chip >
-            <Tooltip placement="top-start" content={lable} delay={1000}><p className={clsx("flex items-center w-[30vw] overflow-hidden text-nowrap", { "text-red-700": red })}>{lable !== null ? lable : t("NONE")}</p></Tooltip>
+            <Tooltip isOpen={lable === null ? false : undefined} placement="top-start" content={lable} delay={1000}><p className={clsx("flex items-center w-[30vw] overflow-hidden text-nowrap", { "text-red-700": red })}>{lable !== null ? lable : t("NONE")}</p></Tooltip>
           </div>
         )
       }
 
+      let showmodid = (diff.remote != null && diff.remote.modid != null) || (diff.local != null && diff.local.modid != null);
+      let showversion = (diff.remote != null && diff.remote.version != null) || (diff.local != null && diff.local.version != null);
       return (
         <Card>
           <CardBody className="space-y-1">
             {cell_renderrow("PATH", value.path, diffpath)}
             {cell_renderrow("MD5", value.md5, diffmd5)}
-            {cell_renderrow("MODID", value.modid, diffmodid)}
-            {cell_renderrow("VER", value.version, diffversion)}
+            {showmodid ? cell_renderrow("MODID", value.modid, diffmodid) : ""}
+            {showversion ? cell_renderrow("VER", value.version, diffversion) : ""}
           </CardBody>
         </Card>
       )
