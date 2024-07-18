@@ -130,6 +130,7 @@ impl MSClient<'_> {
         let mut locallist = _locallist.clone();
         let mut ret: Vec<MODDiff> = vec![];
         for remotemod_ in remotelist.iter() {
+            assert!(remotemod_.as_ref().is_some());
             let remotemod = remotemod_.as_ref().unwrap();
             let mut ok = false;
             for localmod_ in locallist.iter_mut() {
@@ -140,16 +141,18 @@ impl MSClient<'_> {
                         break;
                     }
 
-                    if localmod.modid == remotemod.modid {
-                        ret.push(MODDiff::new(
-                            Kind::MOD,
-                            remotemod.path.clone(),
-                            Some(localmod_.as_ref().unwrap().clone()),
-                            Some(remotemod.clone()),
-                        ));
-                        *localmod_ = None;
-                        ok = true;
-                        break;
+                    if remotemod.modid.is_some() {
+                        if localmod.modid == remotemod.modid {
+                            ret.push(MODDiff::new(
+                                Kind::MOD,
+                                remotemod.path.clone(),
+                                Some(localmod_.as_ref().unwrap().clone()),
+                                Some(remotemod.clone()),
+                            ));
+                            *localmod_ = None;
+                            ok = true;
+                            break;
+                        }
                     }
 
                     if localmod.path == remotemod.path {
@@ -261,7 +264,10 @@ impl MSClient<'_> {
             };
 
             if let Some(_local) = &diff.local {
-                tasks.push(Box::new(DeleteTask::build(diff.name.clone(), fullpath.into())));
+                tasks.push(Box::new(DeleteTask::build(
+                    diff.name.clone(),
+                    fullpath.into(),
+                )));
             } else if let Some(remote) = &diff.remote {
                 let cc: reqwest::Client = client.clone();
                 tasks.push(Box::new(DownloadTask::build(
