@@ -28,16 +28,16 @@ type MODDiff = {
   remote: MSMOD | null,
 }
 const emptydata = [
-  {index: 1, kind: "PLAIN", name: "", local: null, remote: null},
-  {index: 2, kind: "PLAIN", name: "", local: null, remote: null},
-  {index: 3, kind: "PLAIN", name: "", local: null, remote: null},
-  {index: 4, kind: "PLAIN", name: "", local: null, remote: null},
-  {index: 5, kind: "PLAIN", name: "", local: null, remote: null},
-  {index: 6, kind: "PLAIN", name: "", local: null, remote: null},
-  {index: 7, kind: "PLAIN", name: "", local: null, remote: null},
-  {index: 8, kind: "PLAIN", name: "", local: null, remote: null},
-  {index: 9, kind: "PLAIN", name: "", local: null, remote: null},
-  {index: 10, kind: "PLAIN", name: "", local: null, remote: null},
+  { index: 1, kind: "PLAIN", name: "", local: null, remote: null },
+  { index: 2, kind: "PLAIN", name: "", local: null, remote: null },
+  { index: 3, kind: "PLAIN", name: "", local: null, remote: null },
+  { index: 4, kind: "PLAIN", name: "", local: null, remote: null },
+  { index: 5, kind: "PLAIN", name: "", local: null, remote: null },
+  { index: 6, kind: "PLAIN", name: "", local: null, remote: null },
+  { index: 7, kind: "PLAIN", name: "", local: null, remote: null },
+  { index: 8, kind: "PLAIN", name: "", local: null, remote: null },
+  { index: 9, kind: "PLAIN", name: "", local: null, remote: null },
+  { index: 10, kind: "PLAIN", name: "", local: null, remote: null },
 ]
 
 function backtohome() {
