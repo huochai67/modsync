@@ -198,14 +198,29 @@ async fn get_tasks(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<Vec<Ta
     Ok(ret)
 }
 
+build_info::build_info!(fn build_info);
+
 #[tauri::command]
-fn get_version() -> String{
+fn get_version() -> String {
     build_info::format!("v{}", $.crate_info.version).into()
 }
 
 #[tauri::command]
-fn get_buildinfo() -> String{
-    build_info::format!("{} {} {} at {}", $.crate_info.name, $.target.os, $.version_control.unwrap().git().unwrap().commit_short_id, $.timestamp).into()
+fn get_buildinfo() -> String {
+    let bi = build_info();
+    format!(
+        "{} {} {} at {}",
+        bi.crate_info.name,
+        bi.target.os,
+        match &bi.version_control {
+            Some(vc) => {
+                vc.git().unwrap().commit_short_id.as_str()
+            }
+            None => "unknown",
+        },
+        bi.timestamp
+    )
+    .into()
 }
 
 fn main() {
