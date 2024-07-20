@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from '@tauri-apps/api/core';
-import { Card, CardBody, CardFooter, CardHeader, Divider, Listbox, ListboxItem, Progress } from "@nextui-org/react";
+import { Card, CardBody, CardFooter, CardHeader, Divider, Listbox, ListboxItem, Progress, Spinner } from "@nextui-org/react";
 import { useTranslation } from 'react-i18next';
 import { mb_error, mb_info } from "./utils/messagebox";
 import "./utils/i18n"
@@ -31,8 +31,7 @@ export function Page() {
             settasklist(value);
             sleep(50).then(() => {
                 if (value.tasks.length == 0) {
-                    mb_info(t("DONE"));
-                    window.location.replace('/')
+                    mb_info(t("DONE")).then(() => window.location.replace('/'));
                 } else {
                     fetchtasks()
                 }
@@ -45,25 +44,26 @@ export function Page() {
     return (
         <div className="flex flex-col h-full border-4 divide-y-4 divide-background border-background text-foreground bg-background">
             <Card className="h-full">
-                <CardHeader>
+                <CardHeader className="divide-x-8 divide-foreground-50">
+                    <Spinner size="sm" aria-label="sp-dl" />
                     <p>{t('DOWNLOADING')}</p>
                 </CardHeader>
-                <Divider/>
+                <Divider />
                 <CardBody className="grow">
                     <Listbox items={gtpayload.tasks}>
                         {(item) => (
                             <ListboxItem key={item.name}>
-                                <Progress label={item.name} showValueLabel value={(item.downloadsize / item.totalsize) * 100} />
+                                <Progress maxValue={item.totalsize} label={item.name} showValueLabel value={item.downloadsize} />
                             </ListboxItem>
                         )}
                     </Listbox>
                 </CardBody>
-                <Divider/>
+                <Divider />
                 <CardFooter>
                     <div className="flex flex-row w-full h-6 text-nowrap content-center items-center divide-x-8 divide-foreground-50">
-                    <p>{t('PB_TOTAL')}</p>
-                    <Progress value={(gtpayload.num_finished / gtpayload.num_total) * 100} />
-                    <p>{gtpayload.num_finished} / {gtpayload.num_total}</p>
+                        <p>{t('PB_TOTAL')}</p>
+                        <Progress value={(gtpayload.num_finished / gtpayload.num_total) * 100} />
+                        <p>{gtpayload.num_finished} / {gtpayload.num_total}</p>
                     </div>
                 </CardFooter>
             </Card>
