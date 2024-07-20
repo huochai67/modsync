@@ -31,24 +31,18 @@ struct MSNextRunTime {
 }
 
 impl MSNextRunTime {
-    async fn get_client(&self) -> tokio::sync::MutexGuard<'_, Option<MSClient>> {
-        self.client.lock().await
-    }
-
-    async fn try_get_client(&self) -> Result<tokio::sync::MutexGuard<'_, Option<MSClient>>, Error> {
+    async fn try_get_client(&self) -> Result<MSClient, Error> {
         let mut selfclient = self.client.lock().await;
         match selfclient.as_ref() {
             None => {
-                let msconfig = MSConfig::get_remote_config().await?;
-                *selfclient = Some(
-                    MSClientBuilder::new()
-                        .msconfig(msconfig)
-                        .path(getdotminecraft())
-                        .build()?,
-                );
-                Ok(self.get_client().await)
+                let client = MSClientBuilder::new()
+                    .msconfig(MSConfig::get_remote_config().await?)
+                    .path(getdotminecraft())
+                    .build()?;
+                *selfclient = Some(client.clone());
+                Ok(client)
             }
-            Some(_) => Ok(self.get_client().await),
+            Some(client) => Ok(client.clone()),
         }
     }
 }
@@ -65,13 +59,13 @@ fn getdotminecraft() -> String {
 #[tauri::command]
 async fn download_serverlist(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<(), Error> {
     let client = msnruntime.try_get_client().await?;
-    Ok(client.as_ref().unwrap().sync_serverlist().await?)
+    Ok(client.sync_serverlist().await?)
 }
 
 #[tauri::command]
 async fn download_options(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<(), Error> {
     let client = msnruntime.try_get_client().await?;
-    Ok(client.as_ref().unwrap().sync_option().await?)
+    Ok(client.sync_option().await?)
 }
 
 #[tauri::command]
@@ -87,7 +81,7 @@ async fn get_changelog(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<St
         Some(changelog) => Ok(changelog.clone()),
         None => {
             let client = msnruntime.try_get_client().await?;
-            let changelog = client.as_ref().unwrap().get_changelog().await?;
+            let changelog = client.get_changelog().await?;
             *selfchangelog = Some(changelog.clone());
             Ok(changelog)
         }
@@ -97,13 +91,13 @@ async fn get_changelog(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<St
 #[tauri::command]
 async fn get_title(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<String, Error> {
     let client = msnruntime.try_get_client().await?;
-    Ok(client.as_ref().unwrap().get_remoteconfig().title)
+    Ok(client.get_remoteconfig().title)
 }
 
 #[tauri::command]
 async fn get_diff(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<Vec<MODDiff>, Error> {
     let client = msnruntime.try_get_client().await?;
-    Ok(client.as_ref().unwrap().get_difflist().await?)
+    Ok(client.get_difflist().await?)
 }
 
 #[tauri::command]
@@ -114,15 +108,11 @@ async fn apply_diff(
     let client = msnruntime.try_get_client().await?;
     let mut msntasks = msnruntime.tasks.lock().await;
 
-    let vec_task = client
-        .as_ref()
-        .unwrap()
-        .apply_diff(diffs.as_slice())
-        .await?;
+    let vec_task = client.apply_diff(diffs.as_slice()).await?;
 
     *msntasks = vec_task;
     for task in msntasks.iter_mut() {
-        task.spawn().await?;
+        task.spawn();
     }
     Ok(())
 }
