@@ -112,7 +112,7 @@ async fn apply_diff(
 
     *msntasks = vec_task;
     for task in msntasks.iter_mut() {
-        task.spawn();
+        task.spawn().await?;
     }
     Ok(())
 }
