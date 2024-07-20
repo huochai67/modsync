@@ -1,10 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use modsync_app::task_pool::TaskPool;
 use modsync_core::{
     msclient::{MODDiff, MSClient, MSClientBuilder},
     msconfig::MSConfig,
-    mstask::MSTask,
 };
 use tokio::sync::Mutex;
 
@@ -27,7 +27,7 @@ impl serde::Serialize for Error {
 struct MSNextRunTime {
     client: Mutex<Option<MSClient>>,
     changelog: Mutex<Option<String>>,
-    tasks: Mutex<Vec<Box<dyn MSTask + Send + Sync>>>,
+    taskpool: TaskPool,
 }
 
 impl MSNextRunTime {
@@ -106,13 +106,10 @@ async fn apply_diff(
     diffs: Vec<MODDiff>,
 ) -> Result<(), Error> {
     let client = msnruntime.try_get_client().await?;
-    let mut msntasks = msnruntime.tasks.lock().await;
+    let mut vec_task = client.apply_diff(diffs.as_slice()).await?;
 
-    let vec_task = client.apply_diff(diffs.as_slice()).await?;
-
-    *msntasks = vec_task;
-    for task in msntasks.iter_mut() {
-        task.spawn().await?;
+    while let Some(task) = vec_task.pop() {
+        msnruntime.taskpool.push(task).await;
     }
     Ok(())
 }
@@ -135,10 +132,10 @@ impl TaskInfo {
 }
 
 #[tauri::command]
-async fn get_tasks(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<Vec<TaskInfo>, String> {
+async fn get_tasks(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<Vec<TaskInfo>, Error> {
     let mut ret = vec![];
-    let msntasks = msnruntime.tasks.lock().await;
-    for ptask in msntasks.iter() {
+    let running_task = msnruntime.taskpool.check().await?;
+    for ptask in running_task.iter() {
         if !ptask.get_join_handle().is_finished() {
             ret.push(TaskInfo::new(
                 ptask.get_size_total(),
@@ -183,7 +180,7 @@ fn main() {
         .manage(MSNextRunTime {
             client: Default::default(),
             changelog: Default::default(),
-            tasks: Default::default(),
+            taskpool: TaskPool::new(5),
         })
         .invoke_handler(tauri::generate_handler![
             get_version,
