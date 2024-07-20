@@ -27,7 +27,7 @@ impl serde::Serialize for Error {
 struct MSNextRunTime {
     client: Mutex<Option<MSClient>>,
     changelog: Mutex<Option<String>>,
-    taskpool: TaskPool,
+    taskpool: Mutex<TaskPool>,
 }
 
 impl MSNextRunTime {
@@ -69,12 +69,6 @@ async fn download_options(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result
 }
 
 #[tauri::command]
-async fn try_init(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<(), Error> {
-    let _client = msnruntime.try_get_client().await?;
-    Ok(())
-}
-
-#[tauri::command]
 async fn get_changelog(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<String, Error> {
     let mut selfchangelog = msnruntime.changelog.lock().await;
     match selfchangelog.as_ref() {
@@ -108,8 +102,9 @@ async fn apply_diff(
     let client = msnruntime.try_get_client().await?;
     let mut vec_task = client.apply_diff(diffs.as_slice()).await?;
 
+    let mut taskpool = msnruntime.taskpool.lock().await;
     while let Some(task) = vec_task.pop() {
-        msnruntime.taskpool.push(task).await;
+        taskpool.push(task);
     }
     Ok(())
 }
@@ -131,20 +126,31 @@ impl TaskInfo {
     }
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct GetTaskPayload {
+    tasks: Vec<TaskInfo>,
+    num_total: usize,
+    num_finished: usize,
+}
 #[tauri::command]
-async fn get_tasks(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<Vec<TaskInfo>, Error> {
+async fn get_tasks(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<GetTaskPayload, Error> {
     let mut ret = vec![];
-    let running_task = msnruntime.taskpool.check().await?;
+    let mut taskpool = msnruntime.taskpool.lock().await;
+    let running_task = taskpool.check().await?;
     for ptask in running_task.iter() {
-        if !ptask.get_join_handle().is_finished() {
+        if let Some(task) = ptask {
             ret.push(TaskInfo::new(
-                ptask.get_size_total(),
-                ptask.get_size_downloaded().await,
-                ptask.get_name().to_string(),
-            ));
+                task.get_size_total(),
+                task.get_size_downloaded().await,
+                task.get_name().to_string(),
+            ))
         }
     }
-    Ok(ret)
+    Ok(GetTaskPayload {
+        tasks: ret,
+        num_total : taskpool.num_total,
+        num_finished : taskpool.num_finished,
+    })
 }
 
 build_info::build_info!(fn build_info);
@@ -180,7 +186,7 @@ fn main() {
         .manage(MSNextRunTime {
             client: Default::default(),
             changelog: Default::default(),
-            taskpool: TaskPool::new(5),
+            taskpool: Mutex::new(TaskPool::new(5)),
         })
         .invoke_handler(tauri::generate_handler![
             get_version,
@@ -192,7 +198,6 @@ fn main() {
             download_serverlist,
             get_changelog,
             get_title,
-            try_init
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

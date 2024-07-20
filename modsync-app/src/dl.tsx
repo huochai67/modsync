@@ -12,6 +12,11 @@ type TaskInfo = {
     downloadsize: number,
     name: string,
 }
+type GetTaskPayload = {
+    tasks: Array<TaskInfo>,
+    num_total: number,
+    num_finished: number,
+}
 
 function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -19,13 +24,14 @@ function sleep(ms: number) {
 
 export function Page() {
     const { t } = useTranslation();
-    const [tasklist, settasklist] = useState(new Array<TaskInfo>());
+    const [tasklist, settasklist] = useState<GetTaskPayload>({ tasks: [], num_total: 0, num_finished: 0 });
 
     function fetchtasks() {
-        invoke<TaskInfo[]>('get_tasks').then((value) => {
+        invoke<GetTaskPayload>('get_tasks').then((value) => {
+            console.log(value);
             settasklist(value);
             sleep(50).then(() => {
-                if (value.length == 0) {
+                if (value.tasks.length == 0) {
                     mb_info(t("DONE"));
                     window.location.replace('/')
                 } else {
@@ -39,7 +45,7 @@ export function Page() {
 
     return (
         <div className="flex flex-col h-full border-4 divide-y-4 divide-background border-background text-foreground bg-background">
-            <Listbox items={tasklist}>
+            <Listbox items={tasklist.tasks}>
                 {(item) => (
                     <ListboxItem key={item.name}>
                         <Progress label={item.name} showValueLabel value={(item.downloadsize / item.totalsize) * 100} />
