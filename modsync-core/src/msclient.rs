@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use crate::{
     msconfig::MSConfig,
@@ -32,29 +32,67 @@ impl MODDiff {
     }
 }
 
-pub struct MSClient<'a> {
-    config: &'a MSConfig,
-    path: Option<String>,
+#[derive(Clone)]
+pub struct MSClient {
+    inner: Arc<MSClientRef>,
 }
 
-impl MSClient<'_> {
-    pub fn config<'a>(config: &'a MSConfig) -> MSClient<'a> {
-        MSClient { config, path: None }
+pub struct MSClientRef {
+    path: Option<String>,
+    remoteconfig: MSConfig,
+}
+
+struct ClientBuilderConfig {
+    path: Option<String>,
+    remoteconfig: Option<MSConfig>,
+}
+pub struct MSClientBuilder {
+    config: ClientBuilderConfig,
+}
+
+impl MSClientBuilder {
+    pub fn new() -> MSClientBuilder {
+        MSClientBuilder {
+            config: ClientBuilderConfig {
+                path: None,
+                remoteconfig: None,
+            },
+        }
     }
 
-    pub fn path(&mut self, path: String) -> &MSClient {
-        self.path = Some(path);
+    pub fn msconfig(mut self, config: MSConfig) -> MSClientBuilder {
+        self.config.remoteconfig = Some(config);
         self
     }
 
-    pub fn get_path(&self) -> String {
-        self.path.as_ref().expect("no path").clone()
+    pub fn path(mut self, path: String) -> MSClientBuilder {
+        self.config.path = Some(path);
+        self
+    }
+
+    pub fn build(self) -> MSClient {
+        assert!(self.config.remoteconfig.is_none());
+        MSClient {
+            inner: Arc::new(MSClientRef {
+                path: self.config.path,
+                remoteconfig: self.config.remoteconfig.unwrap(),
+            }),
+        }
+    }
+}
+impl MSClient {
+    pub fn get_path(&self) -> Option<String> {
+        self.inner.as_ref().path.clone()
+    }
+
+    pub fn get_remoteconfig(&self) -> MSConfig {
+        self.inner.as_ref().remoteconfig.clone()
     }
 
     pub async fn get_changelog(
         &self,
     ) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
-        match &self.config.changelog_url {
+        match &self.inner.as_ref().remoteconfig.changelog_url {
             Some(changelog_url) => Ok(Some(http_get(changelog_url.as_str()).await?)),
             None => Ok(None),
         }
@@ -62,7 +100,7 @@ impl MSClient<'_> {
     pub async fn get_modlist(
         &self,
     ) -> Result<Option<Vec<Option<MSMOD>>>, Box<dyn std::error::Error + Send + Sync>> {
-        match &self.config.modlist_url {
+        match &self.inner.as_ref().remoteconfig.modlist_url {
             Some(modlist_url) => Ok(Some(serde_json::from_str(
                 http_get(modlist_url.as_str()).await?.as_str(),
             )?)),
@@ -72,7 +110,7 @@ impl MSClient<'_> {
     pub async fn get_necessary(
         &self,
     ) -> Result<Option<Vec<Option<MSMOD>>>, Box<dyn std::error::Error + Send + Sync>> {
-        match &self.config.necessary_url {
+        match &self.inner.as_ref().remoteconfig.necessary_url {
             Some(necessary_url) => Ok(Some(serde_json::from_str(
                 http_get(necessary_url.as_str()).await?.as_str(),
             )?)),
@@ -80,33 +118,33 @@ impl MSClient<'_> {
         }
     }
     pub async fn get_option(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        match &self.config.option_url {
+        match &self.inner.as_ref().remoteconfig.option_url {
             Some(option_url) => http_get(option_url.as_str()).await,
             None => Err(Box::from("config dont contain option url".to_string())),
         }
     }
     pub async fn get_serverlist(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        match &self.config.serverlist_url {
+        match &self.inner.as_ref().remoteconfig.serverlist_url {
             Some(serverlist_url) => http_get(serverlist_url.as_str()).await,
             None => Err(Box::from("config dont contain serverlist url".to_string())),
         }
     }
 
     pub async fn sync_serverlist(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match &self.config.serverlist_url {
+        match &self.inner.as_ref().remoteconfig.serverlist_url {
             Some(serverlist_url) => Ok(http_download(
                 serverlist_url.as_str(),
-                format!("{}/servers.dat", self.path.as_ref().unwrap()).as_str(),
+                format!("{}/servers.dat", self.inner.as_ref().path.as_ref().unwrap()).as_str(),
             )
             .await?),
             None => Err(Box::from("config dont contain serverlist url".to_string())),
         }
     }
     pub async fn sync_option(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match &self.config.option_url {
+        match &self.inner.as_ref().remoteconfig.option_url {
             Some(option_url) => Ok(http_download(
                 option_url.as_str(),
-                format!("{}/option.txt", self.path.as_ref().unwrap()).as_str(),
+                format!("{}/option.txt", self.inner.as_ref().path.as_ref().unwrap()).as_str(),
             )
             .await?),
             None => Err(Box::from("config dont contain option url".to_string())),
@@ -116,7 +154,7 @@ impl MSClient<'_> {
     pub fn get_modlist_local(
         &self,
     ) -> Result<Vec<Option<MSMOD>>, Box<dyn std::error::Error + Send>> {
-        let modspath = format!("{}/mods", self.path.as_ref().unwrap());
+        let modspath = format!("{}/mods", self.inner.as_ref().path.as_ref().unwrap());
         let _ = std::fs::create_dir_all(modspath.as_str());
         MSMOD::from_directory(modspath.as_str(), None)
     }
@@ -230,7 +268,7 @@ impl MSClient<'_> {
                         Err(_) => None,
                     };
                     Self::get_difflist_with(
-                        self.get_path(),
+                        self.inner.as_ref().path.as_ref().unwrap().into(),
                         modlist_local,
                         modlist_remote,
                         necessarylist,
@@ -259,8 +297,16 @@ impl MSClient<'_> {
                 ""
             };
             let fullpath = match diff.kind {
-                Kind::PLAIN => format!("{}/{}", self.path.as_ref().unwrap().as_str(), modpath),
-                Kind::MOD => format!("{}/mods/{}", self.path.as_ref().unwrap().as_str(), modpath),
+                Kind::PLAIN => format!(
+                    "{}/{}",
+                    self.inner.as_ref().path.as_ref().unwrap().as_str(),
+                    modpath
+                ),
+                Kind::MOD => format!(
+                    "{}/mods/{}",
+                    self.inner.as_ref().path.as_ref().unwrap().as_str(),
+                    modpath
+                ),
             };
 
             if let Some(_local) = &diff.local {

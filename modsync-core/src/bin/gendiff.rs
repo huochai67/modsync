@@ -1,17 +1,16 @@
-use modsync_core::{msclient::MSClient, msconfig::MSConfig};
+use modsync_core::{msclient::MSClientBuilder, msconfig::MSConfig};
 
 #[tokio::main]
 async fn main() {
     let config = MSConfig::get_remote_config()
         .await
         .expect("get remote config error");
-    let mut client = MSClient::config(&config);
-    let client2: &MSClient = client.path("./".into());
+    let client = MSClientBuilder::new().msconfig(config).path("./".into()).build();
 
-    if let Ok(locallist) = client2.get_modlist_local() {
+    if let Ok(locallist) = client.get_modlist_local() {
         println!("{:?}", locallist);
     }
-    match client2.get_difflist().await {
+    match client.get_difflist().await {
         Ok(difflist) => {
             println!("{:?}", difflist);
         }
