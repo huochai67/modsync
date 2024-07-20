@@ -1,3 +1,5 @@
+use crate::error::Error;
+
 use std::{
     fs::{read_dir, File},
     io::Read,
@@ -127,47 +129,33 @@ impl MSMOD {
         filedir: &str,
         rootdir: &str,
         serverurl: Option<&str>,
-    ) -> Result<Vec<Option<MSMOD>>, Box<dyn std::error::Error + Send>> {
+    ) -> Result<Vec<Option<MSMOD>>, Error> {
         let mut ret: Vec<Option<MSMOD>> = vec![];
-        match read_dir(filedir) {
-            Ok(entrys) => {
-                for entry_ in entrys {
-                    match entry_ {
-                        Ok(entry) => match entry.file_type() {
-                            Ok(entrytype) => {
-                                if entrytype.is_dir() {
-                                    match Self::from_directory_impl(
-                                        entry.path().to_str().unwrap(),
-                                        rootdir,
-                                        serverurl,
-                                    ) {
-                                        Ok(mut ret2) => ret.append(&mut ret2),
-                                        Err(err) => return Err(err),
-                                    };
-                                }
-                                if entrytype.is_file() {
-                                    let path = entry.path();
-                                    ret.push(Some(MSMOD::from_file(
-                                        path.as_path(),
-                                        rootdir,
-                                        serverurl,
-                                    )));
-                                }
-                            }
-                            Err(err) => return Err(Box::new(err)),
-                        },
-                        Err(err) => return Err(Box::new(err)),
-                    }
-                }
+        let entrys = read_dir(filedir)?;
+        for entry_ in entrys {
+            let entry = entry_?;
+            let entrytype = entry.file_type()?;
+            if entrytype.is_dir() {
+                match Self::from_directory_impl(
+                    entry.path().to_str().unwrap(),
+                    rootdir,
+                    serverurl,
+                ) {
+                    Ok(mut ret2) => ret.append(&mut ret2),
+                    Err(err) => return Err(err),
+                };
             }
-            Err(err) => return Err(Box::new(err)),
+            if entrytype.is_file() {
+                let path = entry.path();
+                ret.push(Some(MSMOD::from_file(path.as_path(), rootdir, serverurl)));
+            }
         }
         Ok(ret)
     }
     pub fn from_directory(
         filedir: &str,
         serverurl: Option<&str>,
-    ) -> Result<Vec<Option<MSMOD>>, Box<dyn std::error::Error + Send>> {
+    ) -> Result<Vec<Option<MSMOD>>, Error> {
         Self::from_directory_impl(filedir, filedir, serverurl)
     }
 }

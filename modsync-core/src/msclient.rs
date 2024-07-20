@@ -1,3 +1,4 @@
+use crate::error::Error;
 use std::{path::Path, sync::Arc};
 
 use crate::{
@@ -39,7 +40,7 @@ pub struct MSClient {
 
 pub struct MSClientRef {
     path: Option<String>,
-    remoteconfig: MSConfig,
+    msconfig: MSConfig,
 }
 
 struct ClientBuilderConfig {
@@ -70,13 +71,15 @@ impl MSClientBuilder {
         self
     }
 
-    pub fn build(self) -> MSClient {
-        assert!(self.config.remoteconfig.is_none());
-        MSClient {
-            inner: Arc::new(MSClientRef {
-                path: self.config.path,
-                remoteconfig: self.config.remoteconfig.unwrap(),
+    pub fn build(self) -> Result<MSClient, Error> {
+        match self.config.remoteconfig {
+            Some(config) => Ok(MSClient {
+                inner: Arc::new(MSClientRef {
+                    path: self.config.path,
+                    msconfig: config,
+                }),
             }),
+            None => Err(Error::BuilderNoMSConfig),
         }
     }
 }
@@ -86,74 +89,66 @@ impl MSClient {
     }
 
     pub fn get_remoteconfig(&self) -> MSConfig {
-        self.inner.as_ref().remoteconfig.clone()
+        self.inner.as_ref().msconfig.clone()
     }
 
-    pub async fn get_changelog(
-        &self,
-    ) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
-        match &self.inner.as_ref().remoteconfig.changelog_url {
-            Some(changelog_url) => Ok(Some(http_get(changelog_url.as_str()).await?)),
-            None => Ok(None),
+    pub async fn get_changelog(&self) -> Result<String, Error> {
+        match &self.inner.as_ref().msconfig.changelog_url {
+            Some(changelog_url) => Ok(http_get(changelog_url.as_str()).await?.text),
+            None => Err(Error::MSConfigNoChangeLogUrl),
         }
     }
-    pub async fn get_modlist(
-        &self,
-    ) -> Result<Option<Vec<Option<MSMOD>>>, Box<dyn std::error::Error + Send + Sync>> {
-        match &self.inner.as_ref().remoteconfig.modlist_url {
-            Some(modlist_url) => Ok(Some(serde_json::from_str(
-                http_get(modlist_url.as_str()).await?.as_str(),
-            )?)),
-            None => Ok(None),
+    pub async fn get_modlist(&self) -> Result<Vec<Option<MSMOD>>, Error> {
+        match &self.inner.as_ref().msconfig.modlist_url {
+            Some(modlist_url) => Ok(serde_json::from_str(
+                http_get(modlist_url.as_str()).await?.text.as_str(),
+            )?),
+            None => Err(Error::MSConfigNoModListUrl),
         }
     }
-    pub async fn get_necessary(
-        &self,
-    ) -> Result<Option<Vec<Option<MSMOD>>>, Box<dyn std::error::Error + Send + Sync>> {
-        match &self.inner.as_ref().remoteconfig.necessary_url {
-            Some(necessary_url) => Ok(Some(serde_json::from_str(
-                http_get(necessary_url.as_str()).await?.as_str(),
-            )?)),
-            None => Ok(None),
+    pub async fn get_necessary(&self) -> Result<Vec<Option<MSMOD>>, Error> {
+        match &self.inner.as_ref().msconfig.necessary_url {
+            Some(necessary_url) => Ok(serde_json::from_str(
+                http_get(necessary_url.as_str()).await?.text.as_str(),
+            )?),
+            None => Err(Error::MSConfigNoNecessaryListUrl),
         }
     }
-    pub async fn get_option(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        match &self.inner.as_ref().remoteconfig.option_url {
-            Some(option_url) => http_get(option_url.as_str()).await,
-            None => Err(Box::from("config dont contain option url".to_string())),
+    pub async fn get_option(&self) -> Result<String, Error> {
+        match &self.inner.as_ref().msconfig.option_url {
+            Some(option_url) => Ok(http_get(option_url.as_str()).await?.text),
+            None => Err(Error::MSConfigNoOptionListUrl),
         }
     }
-    pub async fn get_serverlist(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        match &self.inner.as_ref().remoteconfig.serverlist_url {
-            Some(serverlist_url) => http_get(serverlist_url.as_str()).await,
-            None => Err(Box::from("config dont contain serverlist url".to_string())),
+    pub async fn get_serverlist(&self) -> Result<String, Error> {
+        match &self.inner.as_ref().msconfig.serverlist_url {
+            Some(serverlist_url) => Ok(http_get(serverlist_url.as_str()).await?.text),
+            None => Err(Error::MSConfigNoServerListUrl),
         }
     }
 
-    pub async fn sync_serverlist(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match &self.inner.as_ref().remoteconfig.serverlist_url {
+    pub async fn sync_serverlist(&self) -> Result<(), Error> {
+        match &self.inner.as_ref().msconfig.serverlist_url {
             Some(serverlist_url) => Ok(http_download(
                 serverlist_url.as_str(),
                 format!("{}/servers.dat", self.inner.as_ref().path.as_ref().unwrap()).as_str(),
             )
             .await?),
-            None => Err(Box::from("config dont contain serverlist url".to_string())),
+            None => Err(Error::MSConfigNoServerListUrl),
         }
     }
-    pub async fn sync_option(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        match &self.inner.as_ref().remoteconfig.option_url {
+    pub async fn sync_option(&self) -> Result<(), Error> {
+        match &self.inner.as_ref().msconfig.option_url {
             Some(option_url) => Ok(http_download(
                 option_url.as_str(),
                 format!("{}/option.txt", self.inner.as_ref().path.as_ref().unwrap()).as_str(),
             )
             .await?),
-            None => Err(Box::from("config dont contain option url".to_string())),
+            None => Err(Error::MSConfigNoOptionListUrl),
         }
     }
 
-    pub fn get_modlist_local(
-        &self,
-    ) -> Result<Vec<Option<MSMOD>>, Box<dyn std::error::Error + Send>> {
+    pub fn get_modlist_local(&self) -> Result<Vec<Option<MSMOD>>, Error> {
         let modspath = format!("{}/mods", self.inner.as_ref().path.as_ref().unwrap());
         let _ = std::fs::create_dir_all(modspath.as_str());
         MSMOD::from_directory(modspath.as_str(), None)
@@ -164,7 +159,7 @@ impl MSClient {
         _locallist: Vec<Option<MSMOD>>,
         remotelist: Vec<Option<MSMOD>>,
         _necessarylist: Option<Vec<Option<MSMOD>>>,
-    ) -> Result<Vec<MODDiff>, Box<dyn std::error::Error + Send>> {
+    ) -> Result<Vec<MODDiff>, Error> {
         let mut locallist = _locallist.clone();
         let mut ret: Vec<MODDiff> = vec![];
         for remotemod_ in remotelist.iter() {
@@ -258,24 +253,18 @@ impl MSClient {
         Ok(ret)
     }
 
-    pub async fn get_difflist(&self) -> Result<Vec<MODDiff>, Box<dyn std::error::Error + Send>> {
+    pub async fn get_difflist(&self) -> Result<Vec<MODDiff>, Error> {
         let modlist_local = self.get_modlist_local()?;
         match self.get_modlist().await {
-            Ok(_modlist_remote) => match _modlist_remote {
-                Some(modlist_remote) => {
-                    let necessarylist = match self.get_necessary().await {
-                        Ok(necessarylist) => necessarylist,
-                        Err(_) => None,
-                    };
-                    Self::get_difflist_with(
-                        self.inner.as_ref().path.as_ref().unwrap().into(),
-                        modlist_local,
-                        modlist_remote,
-                        necessarylist,
-                    )
-                }
-                None => panic!("no modlist in config"),
-            },
+            Ok(modlist_remote) => {
+                let necessarylist = self.get_necessary().await?;
+                Self::get_difflist_with(
+                    self.inner.as_ref().path.as_ref().unwrap().into(),
+                    modlist_local,
+                    modlist_remote,
+                    Some(necessarylist),
+                )
+            }
             Err(err) => Err(err),
         }
     }
@@ -283,7 +272,7 @@ impl MSClient {
     pub async fn apply_diff(
         &self,
         diffs: &[MODDiff],
-    ) -> Result<Vec<Box<dyn MSTask + Send + Sync>>, Box<dyn std::error::Error + Send>> {
+    ) -> Result<Vec<Box<dyn MSTask + Send + Sync>>, Error> {
         let mut tasks: Vec<Box<dyn MSTask + Send + Sync>> = vec![];
         let client = reqwest::Client::new();
         for diff in diffs {

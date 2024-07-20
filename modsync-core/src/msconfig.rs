@@ -1,3 +1,5 @@
+use crate::error::Error;
+
 use std::{fs::File, io::Read};
 
 use crate::utils::http_get;
@@ -35,10 +37,10 @@ impl MSConfig {
         }
     }
 
-    pub fn from_str(json: &str) -> Result<MSConfig, Box<dyn std::error::Error>> {
+    pub fn from_str(json: &str) -> Result<MSConfig, Error> {
         Ok(serde_json::from_str::<MSConfig>(json)?)
     }
-    pub fn from_file(filepath: &str) -> Result<MSConfig, Box<dyn std::error::Error>> {
+    pub fn from_file(filepath: &str) -> Result<MSConfig, Error> {
         let mut file = File::open(filepath)?;
         let mut str: String = "".to_string();
         file.read_to_string(&mut str)?;
@@ -49,10 +51,11 @@ impl MSConfig {
         self.title.to_string()
     }
 
-    pub async fn get_remote_config() -> Result<MSConfig, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn get_remote_config() -> Result<MSConfig, Error> {
         Ok(serde_json::from_str::<MSConfig>(
             http_get("https://ms.nicefish4520.com/info.json")
                 .await?
+                .text
                 .as_str(),
         )?)
     }

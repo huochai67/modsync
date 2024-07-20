@@ -1,3 +1,4 @@
+use crate::error::Error;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -12,16 +13,16 @@ pub trait MSTask {
     async fn get_size_downloaded(&self) -> u64;
     fn get_size_total(&self) -> u64;
     fn get_name(&self) -> &str;
-    fn get_join_handle(&self) -> &JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>;
+    fn get_join_handle(&self) -> &JoinHandle<Result<(), Error>>;
 
-    async fn spawn(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    async fn spawn(&mut self) -> Result<(), Error>;
 }
 
 pub struct DownloadTask {
     reqclient: reqwest::Client,
     totalsize: u64,
     downloadedsize: Arc<Mutex<u64>>,
-    joinhandle: Option<JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>>,
+    joinhandle: Option<JoinHandle<Result<(), Error>>>,
     name: String,
     url: String,
     savepath: String,
@@ -54,7 +55,7 @@ impl MSTask for DownloadTask {
     fn get_size_total(&self) -> u64 {
         self.totalsize.clone()
     }
-    fn get_join_handle(&self) -> &JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>> {
+    fn get_join_handle(&self) -> &JoinHandle<Result<(), Error>> {
         self.joinhandle.as_ref().unwrap()
     }
 
@@ -62,7 +63,7 @@ impl MSTask for DownloadTask {
         self.name.as_str()
     }
 
-    async fn spawn(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn spawn(&mut self) -> Result<(), Error> {
         let path = Path::new(self.savepath.as_str()).parent().unwrap();
         tokio::fs::create_dir_all(path).await?;
 
@@ -93,7 +94,7 @@ impl MSTask for DownloadTask {
 pub struct DeleteTask {
     path: Option<PathBuf>,
     name: String,
-    joinhandle: Option<JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>>,
+    joinhandle: Option<JoinHandle<Result<(), Error>>>,
 }
 
 impl DeleteTask {
@@ -122,18 +123,13 @@ impl MSTask for DeleteTask {
         self.name.as_str()
     }
 
-    fn get_join_handle(&self) -> &JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>> {
+    fn get_join_handle(&self) -> &JoinHandle<Result<(), Error>> {
         self.joinhandle.as_ref().unwrap()
     }
 
-    async fn spawn(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn spawn(&mut self) -> Result<(), Error> {
         let path = self.path.take().unwrap();
-        self.joinhandle = Some(tokio::spawn(async move {
-            match std::fs::remove_file(path) {
-                Ok(_) => Ok(()),
-                Err(err) => Err(Box::from(err)),
-            }
-        }));
+        self.joinhandle = Some(tokio::spawn(async move { Ok(std::fs::remove_file(path)?) }));
         Ok(())
     }
 }
