@@ -13,5 +13,8 @@
 
     "BACK" : "Back",
     "RELOAD" : "Reload",
-    "SYNC" : "Sync"
+    "SYNC" : "Sync",
+
+    "DOWNLOADING" : "downloading....",
+    "PB_TOTAL" : "total"
  }

@@ -18,5 +18,8 @@
     "RELOAD" : "刷新",
     "SYNC" : "同步",
 
-    "DONE" : "完成"
+    "DONE" : "完成",
+
+    "DOWNLOADING" : "下载中....",
+    "PB_TOTAL" : "总进度"
  }
