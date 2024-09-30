@@ -30,7 +30,7 @@ export function Page() {
         invoke<GetTaskPayload>('get_tasks').then((value) => {
             settasklist(value);
             sleep(50).then(() => {
-                if (value.tasks.length == 0) {
+                if (value.num_finished == value.num_total) {
                     mb_info(t("DONE")).then(() => window.location.replace('/'));
                 } else {
                     fetchtasks()

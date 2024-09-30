@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::mstask::MSTaskStatus;
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error(transparent)]
@@ -10,6 +12,9 @@ pub enum Error {
 
     #[error(transparent)]
     StdIO(#[from] std::io::Error),
+
+    #[error(transparent)]
+    TokioSyncTrySend(#[from] tokio::sync::mpsc::error::TrySendError<MSTaskStatus>),
 
     #[error("MSClientBuilder doesnt have msconfig")]
     BuilderNoMSConfig,
@@ -31,4 +36,7 @@ pub enum Error {
 
     #[error("msconfig dont contain modlist url")]
     MSConfigNoNecessaryListUrl,
+
+    #[error("mpsc error")]
+    MSTaskMPSC,
 }

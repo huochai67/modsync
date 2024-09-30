@@ -136,20 +136,15 @@ struct GetTaskPayload {
 async fn get_tasks(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<GetTaskPayload, Error> {
     let mut ret = vec![];
     let mut taskpool = msnruntime.taskpool.lock().await;
-    let running_task = taskpool.check().await?;
+    taskpool.check().await?;
+    let running_task = taskpool.get_status();
     for ptask in running_task.iter() {
-        if let Some(task) = ptask {
-            ret.push(TaskInfo::new(
-                task.get_size_total(),
-                task.get_size_downloaded().await,
-                task.get_name().to_string(),
-            ))
-        }
+        ret.push(TaskInfo::new(ptask.total, ptask.now, ptask.name.clone()))
     }
     Ok(GetTaskPayload {
         tasks: ret,
-        num_total : taskpool.num_total,
-        num_finished : taskpool.num_finished,
+        num_total: taskpool.num_total,
+        num_finished: taskpool.num_finished,
     })
 }
 

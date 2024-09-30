@@ -1,28 +1,37 @@
 use crate::error::Error;
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use futures::StreamExt;
-use tokio::{fs::File, io::AsyncWriteExt, sync::Mutex, task::JoinHandle};
+use tokio::sync::mpsc::Sender;
+use tokio::{fs::File, io::AsyncWriteExt};
+
+#[derive(Clone)]
+pub struct MSTaskStatus {
+    pub name: String,
+    pub total: u64,
+    pub now: u64,
+    pub finish: bool,
+}
+
+impl MSTaskStatus {
+    pub fn new(name: String, total: u64, now: u64, finish: bool) -> Self {
+        MSTaskStatus {
+            name,
+            total,
+            now,
+            finish,
+        }
+    }
+}
 
 #[async_trait]
 pub trait MSTask {
-    async fn get_size_downloaded(&self) -> u64;
-    fn get_size_total(&self) -> u64;
-    fn get_name(&self) -> &str;
-    fn get_join_handle(&self) -> &JoinHandle<Result<(), Error>>;
-
-    async fn spawn(&mut self) -> Result<(), Error>;
+    async fn start(&mut self, receiver: Sender<MSTaskStatus>) -> Result<(), Error>;
 }
 
 pub struct DownloadTask {
     reqclient: reqwest::Client,
-    totalsize: u64,
-    downloadedsize: Arc<Mutex<u64>>,
-    joinhandle: Option<JoinHandle<Result<(), Error>>>,
     name: String,
     url: String,
     savepath: String,
@@ -37,56 +46,47 @@ impl DownloadTask {
     ) -> DownloadTask {
         DownloadTask {
             reqclient,
-            totalsize: 0,
-            downloadedsize: Arc::from(Mutex::new(0)),
             name,
             url,
             savepath,
-            joinhandle: None,
         }
     }
 }
 
 #[async_trait]
 impl MSTask for DownloadTask {
-    async fn get_size_downloaded(&self) -> u64 {
-        self.downloadedsize.lock().await.clone()
-    }
-    fn get_size_total(&self) -> u64 {
-        self.totalsize.clone()
-    }
-    fn get_join_handle(&self) -> &JoinHandle<Result<(), Error>> {
-        self.joinhandle.as_ref().unwrap()
-    }
-
-    fn get_name(&self) -> &str {
-        self.name.as_str()
-    }
-
-    async fn spawn(&mut self) -> Result<(), Error> {
+    async fn start(&mut self, receiver: Sender<MSTaskStatus>) -> Result<(), Error> {
         let path = Path::new(self.savepath.as_str()).parent().unwrap();
         tokio::fs::create_dir_all(path).await?;
 
         let mut save_file = File::create(self.savepath.as_str()).await?;
 
         let resp = self.reqclient.get(self.url.as_str()).send().await?;
-        self.totalsize = match resp.content_length() {
+        let totalsize = match resp.content_length() {
             Some(ts) => ts,
             None => 0,
         };
 
         let mut stream = resp.bytes_stream();
-        let ptr_size = self.downloadedsize.clone();
-
-        self.joinhandle = Some(tokio::spawn(async move {
-            while let Some(chunk_result) = stream.next().await {
-                let chunk = chunk_result?;
-                *ptr_size.lock().await += chunk.len() as u64;
-                save_file.write_all(&chunk).await?;
-            }
-            save_file.flush().await?;
-            Ok(())
-        }));
+        let mut downloadedsize = 0;
+        while let Some(chunk_result) = stream.next().await {
+            let chunk = chunk_result?;
+            downloadedsize += chunk.len() as u64;
+            save_file.write_all(&chunk).await?;
+            receiver.try_send(MSTaskStatus::new(
+                self.name.clone(),
+                totalsize,
+                downloadedsize,
+                false,
+            ))?;
+        }
+        save_file.flush().await?;
+        receiver.try_send(MSTaskStatus::new(
+            self.name.clone(),
+            totalsize,
+            downloadedsize,
+            true,
+        ))?;
         Ok(())
     }
 }
@@ -94,7 +94,6 @@ impl MSTask for DownloadTask {
 pub struct DeleteTask {
     path: Option<PathBuf>,
     name: String,
-    joinhandle: Option<JoinHandle<Result<(), Error>>>,
 }
 
 impl DeleteTask {
@@ -102,34 +101,16 @@ impl DeleteTask {
         DeleteTask {
             path: Some(path),
             name,
-            joinhandle: None,
         }
     }
 }
 
 #[async_trait]
 impl MSTask for DeleteTask {
-    #[allow(unreachable_code)]
-    async fn get_size_downloaded(&self) -> u64 {
-        !todo!()
-    }
-
-    #[allow(unreachable_code)]
-    fn get_size_total(&self) -> u64 {
-        !todo!()
-    }
-
-    fn get_name(&self) -> &str {
-        self.name.as_str()
-    }
-
-    fn get_join_handle(&self) -> &JoinHandle<Result<(), Error>> {
-        self.joinhandle.as_ref().unwrap()
-    }
-
-    async fn spawn(&mut self) -> Result<(), Error> {
+    async fn start(&mut self, receiver: Sender<MSTaskStatus>) -> Result<(), Error> {
         let path = self.path.take().unwrap();
-        self.joinhandle = Some(tokio::spawn(async move { Ok(std::fs::remove_file(path)?) }));
+        std::fs::remove_file(path)?;
+        receiver.try_send(MSTaskStatus::new(self.name.clone(), 1, 1, true))?;
         Ok(())
     }
 }

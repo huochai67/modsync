@@ -1,9 +1,15 @@
-use modsync_core::mstask::MSTask;
+use modsync_core::mstask::{MSTask, MSTaskStatus};
+use std::collections::{HashMap, VecDeque};
+use tokio::sync::mpsc;
 
 pub struct TaskPool {
-    all_tasks: Vec<Box<dyn MSTask + Send + Sync>>,
-    running_tasks: Vec<Option<Box<dyn MSTask + Send + Sync>>>,
+    tx: mpsc::Sender<MSTaskStatus>,
+    rx: mpsc::Receiver<MSTaskStatus>,
+
+    tasks: VecDeque<Box<dyn MSTask + Send>>,
+    task_status: HashMap<String, MSTaskStatus>,
     bounded: usize,
+    running_task: usize,
 
     pub num_total: usize,
     pub num_finished: usize,
@@ -11,63 +17,58 @@ pub struct TaskPool {
 
 impl TaskPool {
     pub fn new(bounded: usize) -> TaskPool {
+        let (tx, rx) = mpsc::channel(198964);
+
         TaskPool {
-            all_tasks: Default::default(),
-            running_tasks: Default::default(),
+            tx,
+            rx,
+            tasks: VecDeque::default(),
+            task_status: HashMap::default(),
             bounded,
+            running_task: 0,
             num_finished: 0,
             num_total: 0,
         }
     }
 
-    pub fn push(&mut self, task: Box<dyn MSTask + Send + Sync>) {
-        self.all_tasks.push(task);
+    pub fn push(&mut self, task: Box<dyn MSTask + Send>) {
+        self.tasks.push_back(task);
         self.num_total += 1;
     }
 
-    pub fn pop(
-        vec: &mut Vec<Box<dyn MSTask + Send + Sync>>,
-    ) -> Option<Box<dyn MSTask + Send + Sync>> {
-        vec.pop()
+    pub fn pop(&mut self) -> Option<Box<dyn MSTask + Send>> {
+        self.tasks.pop_back()
     }
 
-    pub async fn pop_and_spawn(
-        vec: &mut Vec<Box<dyn MSTask + Send + Sync>>,
-    ) -> Result<Option<Box<dyn MSTask + Send + Sync>>, modsync_core::error::Error> {
-        match Self::pop(vec) {
-            Some(mut task) => {
-                task.spawn().await?;
-                Ok(Some(task))
+    pub async fn check(&mut self) -> Result<(), modsync_core::error::Error> {
+        while let Ok(st) = self.rx.try_recv() {
+            if st.finish {
+                self.task_status.remove(&st.name);
+                self.running_task -= 1;
+                self.num_finished += 1;
+            } else {
+                let copy_ = st.clone();
+                self.task_status.insert(st.name, copy_);
             }
-            None => Ok(None),
         }
-    }
 
-    pub async fn check(
-        &mut self,
-    ) -> Result<&Vec<Option<Box<dyn MSTask + Send + Sync>>>, modsync_core::error::Error> {
-        if self.running_tasks.len() < self.bounded {
-            for _n in 0..(self.bounded - self.running_tasks.len()) {
-                match Self::pop_and_spawn(&mut self.all_tasks).await? {
-                    Some(task) => self.running_tasks.push(Some(task)),
+        if self.running_task < self.bounded {
+            for _n in 0..(self.bounded - self.running_task) {
+                match self.pop() {
+                    Some(mut task) => {
+                        let tx = self.tx.clone();
+                        self.running_task += 1;
+                        tokio::spawn(async move { task.start(tx).await });
+                    }
                     None => break,
                 }
             }
         }
 
-        for task in self.running_tasks.iter_mut() {
-            if let Some(sometask) = task {
-                if !sometask.get_join_handle().is_finished() {
-                    continue;
-                }else {
-                    self.num_finished += 1;
-                }
-            }
-            match Self::pop_and_spawn(&mut self.all_tasks).await? {
-                Some(replace) => *task = Some(replace),
-                None => *task = None,
-            }
-        }
-        Ok(&self.running_tasks)
+        Ok(())
+    }
+
+    pub fn get_status(&mut self) -> Vec<MSTaskStatus> {
+        self.task_status.iter().map(|(_k, v)| v.clone()).collect()
     }
 }
