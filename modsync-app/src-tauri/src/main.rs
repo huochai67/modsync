@@ -181,7 +181,7 @@ fn main() {
         .manage(MSNextRunTime {
             client: Default::default(),
             changelog: Default::default(),
-            taskpool: Mutex::new(TaskPool::new(5)),
+            taskpool: Mutex::new(TaskPool::new(32)),
         })
         .invoke_handler(tauri::generate_handler![
             get_version,
