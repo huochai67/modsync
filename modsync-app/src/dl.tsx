@@ -40,7 +40,6 @@ export function Page() {
     }
 
     useEffect(fetchtasks, []);
-
     return (
         <div className="flex flex-col h-full border-4 divide-y-4 divide-background border-background text-foreground bg-background">
             <Card className="h-full">
@@ -63,7 +62,7 @@ export function Page() {
                     <div className="flex flex-row w-full h-6 text-nowrap content-center items-center divide-x-8 divide-foreground-50">
                         <p>{t('PB_TOTAL')}</p>
                         <Progress value={(gtpayload.num_finished / gtpayload.num_total) * 100} />
-                        <p>{gtpayload.num_finished} / {gtpayload.num_total}</p>
+                        <p>{`${gtpayload.num_finished} / ${gtpayload.num_total}`}</p>
                     </div>
                 </CardFooter>
             </Card>

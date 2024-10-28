@@ -81,13 +81,18 @@ impl MSTask for DownloadTask {
             ))?;
         }
         save_file.flush().await?;
-        receiver.try_send(MSTaskStatus::new(
-            self.name.clone(),
-            totalsize,
-            downloadedsize,
-            true,
-        ))?;
-        Ok(())
+        match receiver
+            .send(MSTaskStatus::new(
+                self.name.clone(),
+                totalsize,
+                downloadedsize,
+                true,
+            ))
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(_) => Err(Error::MSTaskMPSC),
+        }
     }
 }
 
@@ -110,7 +115,12 @@ impl MSTask for DeleteTask {
     async fn start(&mut self, receiver: Sender<MSTaskStatus>) -> Result<(), Error> {
         let path = self.path.take().unwrap();
         std::fs::remove_file(path)?;
-        receiver.try_send(MSTaskStatus::new(self.name.clone(), 1, 1, true))?;
-        Ok(())
+        match receiver
+            .send(MSTaskStatus::new(self.name.clone(), 1, 1, true))
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(_) => Err(Error::MSTaskMPSC),
+        }
     }
 }
