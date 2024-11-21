@@ -1,5 +1,8 @@
 use modsync_core::mstask::{MSTask, MSTaskStatus};
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    time::Duration,
+};
 use tokio::sync::mpsc;
 
 pub struct TaskPool {
@@ -11,6 +14,7 @@ pub struct TaskPool {
 
     pub num_total: usize,
     pub num_finished: usize,
+    pub num_running: usize,
 }
 
 impl TaskPool {
@@ -24,6 +28,7 @@ impl TaskPool {
             task_status: HashMap::default(),
             num_finished: 0,
             num_total: 0,
+            num_running: 0,
         }
     }
 
@@ -37,15 +42,20 @@ impl TaskPool {
             if st.finish {
                 self.task_status.remove(&st.name);
                 self.num_finished += 1;
+                self.num_running -= 1;
             } else {
                 let copy_ = st.clone();
                 self.task_status.insert(st.name, copy_);
             }
         }
 
-        while let Some(mut task) = self.tasks.pop_back() {
-            let tx = self.tx.clone();
-            tokio::spawn(async move { task.start(tx).await });
+        while self.num_running < 16 && !self.tasks.is_empty() {
+            if let Some(mut task) = self.tasks.pop_back() {
+                let tx = self.tx.clone();
+                self.num_running += 1;
+                tokio::spawn(async move { task.start(tx).await });
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
 
         Ok(())
