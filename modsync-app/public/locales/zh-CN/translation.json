@@ -21,5 +21,6 @@
     "DONE" : "完成",
 
     "DOWNLOADING" : "下载中....",
+    "DOWNLOADNOW" : "当前总任务:",
     "PB_TOTAL" : "总进度"
  }

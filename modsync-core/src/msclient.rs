@@ -1,5 +1,5 @@
 use crate::error::Error;
-use std::{path::Path, sync::Arc};
+use std::{path::Path, sync::Arc, time::Duration};
 
 use crate::{
     msconfig::MSConfig,
@@ -274,7 +274,7 @@ impl MSClient {
         diffs: &[MODDiff],
     ) -> Result<Vec<Box<dyn MSTask + Send + Sync>>, Error> {
         let mut tasks: Vec<Box<dyn MSTask + Send + Sync>> = vec![];
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build()?;
         for diff in diffs {
             let modpath = if let Some(localmod) = &diff.local {
                 localmod.path.as_ref()

@@ -1,12 +1,13 @@
 use crate::error::Error;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use futures::StreamExt;
 use tokio::sync::mpsc::Sender;
 use tokio::{fs::File, io::AsyncWriteExt};
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct MSTaskStatus {
     pub name: String,
     pub total: u64,
@@ -61,6 +62,14 @@ impl MSTask for DownloadTask {
 
         let mut save_file = File::create(self.savepath.as_str()).await?;
 
+        // Task start
+        if let Err(_) = receiver
+            .send(MSTaskStatus::new(self.name.clone(), 0, 0, false))
+            .await
+        {
+            return Err(Error::MSTaskMPSC);
+        }
+
         let resp = self.reqclient.get(self.url.as_str()).send().await?;
         let totalsize = match resp.content_length() {
             Some(ts) => ts,
@@ -79,6 +88,7 @@ impl MSTask for DownloadTask {
                 downloadedsize,
                 false,
             ))?;
+            tokio::time::sleep(Duration::from_millis(5)).await;
         }
         save_file.flush().await?;
         match receiver

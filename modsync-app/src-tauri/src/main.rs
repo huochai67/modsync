@@ -5,6 +5,7 @@ use modsync_app::task_pool::TaskPool;
 use modsync_core::{
     msclient::{MODDiff, MSClient, MSClientBuilder},
     msconfig::MSConfig,
+    mstask::MSTaskStatus,
 };
 use tokio::sync::Mutex;
 
@@ -109,40 +110,19 @@ async fn apply_diff(
     Ok(())
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct TaskInfo {
-    totalsize: u64,
-    downloadsize: u64,
-    name: String,
-}
-
-impl TaskInfo {
-    fn new(totalsize: u64, downloadsize: u64, name: String) -> TaskInfo {
-        TaskInfo {
-            totalsize,
-            downloadsize,
-            name,
-        }
-    }
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 struct GetTaskPayload {
-    tasks: Vec<TaskInfo>,
+    tasks: Vec<MSTaskStatus>,
     num_total: usize,
     num_finished: usize,
 }
 #[tauri::command]
 async fn get_tasks(msnruntime: tauri::State<'_, MSNextRunTime>) -> Result<GetTaskPayload, Error> {
-    let mut ret = vec![];
     let mut taskpool = msnruntime.taskpool.lock().await;
     taskpool.check().await?;
     let running_task = taskpool.get_status();
-    for ptask in running_task.iter() {
-        ret.push(TaskInfo::new(ptask.total, ptask.now, ptask.name.clone()))
-    }
     Ok(GetTaskPayload {
-        tasks: ret,
+        tasks: running_task,
         num_total: taskpool.num_total,
         num_finished: taskpool.num_finished,
     })

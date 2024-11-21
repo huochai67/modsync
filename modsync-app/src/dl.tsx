@@ -7,13 +7,14 @@ import "./utils/i18n"
 
 import "./global.css";
 
-type TaskInfo = {
-    totalsize: number,
-    downloadsize: number,
+type MSTaskStatus = {
     name: string,
+    total: number,
+    now: number,
+    finish: boolean,
 }
 type GetTaskPayload = {
-    tasks: Array<TaskInfo>,
+    tasks: Array<MSTaskStatus>,
     num_total: number,
     num_finished: number,
 }
@@ -29,7 +30,7 @@ export function Page() {
     function fetchtasks() {
         invoke<GetTaskPayload>('get_tasks').then((value) => {
             settasklist(value);
-            sleep(50).then(() => {
+            sleep(100).then(() => {
                 if (value.num_finished == value.num_total) {
                     mb_info(t("DONE")).then(() => window.location.replace('/'));
                 } else {
@@ -46,13 +47,14 @@ export function Page() {
                 <CardHeader className="divide-x-8 divide-foreground-50">
                     <Spinner size="sm" aria-label="sp-dl" />
                     <p>{t('DOWNLOADING')}</p>
+                    <p>{`${t('DOWNLOADNOW')} ${gtpayload.tasks.length}`}</p>
                 </CardHeader>
                 <Divider />
                 <CardBody className="grow">
                     <Listbox items={gtpayload.tasks}>
                         {(item) => (
                             <ListboxItem key={item.name}>
-                                <Progress maxValue={item.totalsize} label={item.name} showValueLabel value={item.downloadsize} />
+                                <Progress maxValue={item.total} label={item.name} showValueLabel value={item.now} />
                             </ListboxItem>
                         )}
                     </Listbox>
