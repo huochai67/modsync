@@ -1,43 +1,71 @@
-use modsync_core::mstask::{MSTask, MSTaskStatus};
-use std::{
-    collections::{HashMap, VecDeque},
-    time::Duration,
+use modsync_core::{
+    error::Error,
+    mstask::{MSTask, MSTaskStatus},
 };
-use tokio::sync::mpsc;
+use std::collections::HashMap;
+use tokio::{sync::mpsc, task::JoinSet};
 
-pub struct TaskPool {
-    tx: mpsc::Sender<MSTaskStatus>,
+type BoxTask = Box<dyn MSTask + Send>;
+type BoxTasks = Vec<BoxTask>;
+
+pub struct Task {
+    pub tx: mpsc::Sender<MSTaskStatus>,
     rx: mpsc::Receiver<MSTaskStatus>,
 
-    tasks: VecDeque<Box<dyn MSTask + Send>>,
     task_status: HashMap<String, MSTaskStatus>,
 
     pub num_total: usize,
     pub num_finished: usize,
     pub num_running: usize,
+
+    pub num_piece_size: usize,
 }
 
-impl TaskPool {
-    pub fn new() -> TaskPool {
+impl Task {
+    pub fn new() -> Task {
         let (tx, rx) = mpsc::channel(198964);
 
-        TaskPool {
+        Task {
             tx,
             rx,
-            tasks: VecDeque::default(),
             task_status: HashMap::default(),
             num_finished: 0,
             num_total: 0,
             num_running: 0,
+            num_piece_size: 0,
         }
     }
 
-    pub fn push(&mut self, task: Box<dyn MSTask + Send>) {
-        self.tasks.push_back(task);
-        self.num_total += 1;
+    pub async fn run(&self, mut tasks: Box<BoxTasks>) -> Result<(), Error> {
+        //self.num_total = tasks.len();
+
+        while tasks.len() > 0 {
+            let piece = tasks.split_off(self.num_piece_size);
+
+            let mut set = JoinSet::new();
+            for task in piece {
+                let tx = self.tx.clone();
+                set.spawn(async move { task.start(tx).await });
+            }
+            /*
+                        let fetches = tokio_stream::iter(piece.into_iter())
+                            .map(|mut ta| {
+                                let tx = self.tx.clone();
+                                async move { ta.start(tx).await }
+                            })
+                            .buffer_unordered(8)
+                            .collect::<Vec<Result<(), Error>>>();
+            */
+            for result in set.join_all().await {
+                if let Err(err) = result {
+                    return Err(err);
+                }
+            }
+        }
+        Ok(())
     }
 
-    pub async fn check(&mut self) -> Result<(), modsync_core::error::Error> {
+    pub fn get_status(&mut self) -> Vec<MSTaskStatus> {
         while let Ok(st) = self.rx.try_recv() {
             if st.finish {
                 self.task_status.remove(&st.name);
@@ -49,19 +77,27 @@ impl TaskPool {
             }
         }
 
-        while self.num_running < 16 && !self.tasks.is_empty() {
-            if let Some(mut task) = self.tasks.pop_back() {
-                let tx = self.tx.clone();
-                self.num_running += 1;
-                tokio::spawn(async move { task.start(tx).await });
-            }
-            tokio::time::sleep(Duration::from_millis(200)).await;
-        }
-
-        Ok(())
-    }
-
-    pub fn get_status(&mut self) -> Vec<MSTaskStatus> {
         self.task_status.iter().map(|(_k, v)| v.clone()).collect()
     }
+}
+
+pub async fn ddrun(tx: mpsc::Sender<MSTaskStatus>, mut tasks: Box<BoxTasks>) -> Result<(), Error> {
+    while tasks.len() > 0 {
+        let piece = tasks.split_off(match tasks.len() > 100 {
+            true => 100,
+            false => tasks.len(),
+        });
+        let mut set = JoinSet::new();
+        for task in piece {
+            let tx = tx.clone();
+            set.spawn(async move { task.start(tx).await });
+        }
+
+        for result in set.join_all().await {
+            if let Err(err) = result {
+                return Err(err);
+            }
+        }
+    }
+    Ok(())
 }

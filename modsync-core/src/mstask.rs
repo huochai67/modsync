@@ -28,7 +28,7 @@ impl MSTaskStatus {
 
 #[async_trait]
 pub trait MSTask {
-    async fn start(&mut self, receiver: Sender<MSTaskStatus>) -> Result<(), Error>;
+    async fn start(&self, receiver: Sender<MSTaskStatus>) -> Result<(), Error>;
 }
 
 pub struct DownloadTask {
@@ -56,7 +56,7 @@ impl DownloadTask {
 
 #[async_trait]
 impl MSTask for DownloadTask {
-    async fn start(&mut self, receiver: Sender<MSTaskStatus>) -> Result<(), Error> {
+    async fn start(&self, receiver: Sender<MSTaskStatus>) -> Result<(), Error> {
         let path = Path::new(self.savepath.as_str()).parent().unwrap();
         tokio::fs::create_dir_all(path).await?;
 
@@ -122,8 +122,8 @@ impl DeleteTask {
 
 #[async_trait]
 impl MSTask for DeleteTask {
-    async fn start(&mut self, receiver: Sender<MSTaskStatus>) -> Result<(), Error> {
-        let path = self.path.take().unwrap();
+    async fn start(&self, receiver: Sender<MSTaskStatus>) -> Result<(), Error> {
+        let path = self.path.as_ref().unwrap();
         std::fs::remove_file(path)?;
         match receiver
             .send(MSTaskStatus::new(self.name.clone(), 1, 1, true))
