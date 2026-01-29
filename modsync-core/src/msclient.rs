@@ -1,5 +1,5 @@
 use crate::{error::Error, msconfig::ReleaseInfo};
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use crate::{
     msconfig::MSConfig,
