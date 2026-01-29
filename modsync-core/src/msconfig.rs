@@ -60,12 +60,9 @@ impl MSConfig {
         self.title.to_string()
     }
 
-    pub async fn get_remote_config() -> Result<MSConfig, Error> {
+    pub async fn get_remote_config(url: &str) -> Result<MSConfig, Error> {
         Ok(serde_json::from_str::<MSConfig>(
-            http_get("https://cn.ms.nicefish4520.com/info.json")
-                .await?
-                .text
-                .as_str(),
+            http_get(url).await?.text.as_str(),
         )?)
     }
 }
