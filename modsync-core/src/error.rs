@@ -34,8 +34,8 @@ pub enum Error {
     #[error("msconfig dont contain modlist url")]
     MSConfigNoModListUrl,
 
-    #[error("msconfig dont contain modlist url")]
-    MSConfigNoNecessaryListUrl,
+    #[error("msconfig dont contain configpack")]
+    MSConfigNoConfigPack,
 
     #[error("mpsc error")]
     MSTaskMPSC,

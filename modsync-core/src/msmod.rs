@@ -57,6 +57,13 @@ impl MSMOD {
         }
     }
 
+    pub fn from_jsonfile(filepath: &str) -> Result<Vec<MSMOD>, Error> {
+        let mut file = File::open(filepath)?;
+        let mut str: String = "".to_string();
+        file.read_to_string(&mut str)?;
+        Ok(serde_json::from_str::<Vec<MSMOD>>(str.as_str())?)
+    }
+
     pub fn from_file(filepath: &Path, parentpath: &str, serverurl: Option<&str>) -> MSMOD {
         let mut file = File::open(filepath).unwrap();
         let mut buffer = Vec::new();
@@ -129,33 +136,27 @@ impl MSMOD {
         filedir: &str,
         rootdir: &str,
         serverurl: Option<&str>,
-    ) -> Result<Vec<Option<MSMOD>>, Error> {
-        let mut ret: Vec<Option<MSMOD>> = vec![];
+    ) -> Result<Vec<MSMOD>, Error> {
+        let mut ret: Vec<MSMOD> = vec![];
         let entrys = read_dir(filedir)?;
         for entry_ in entrys {
             let entry = entry_?;
             let entrytype = entry.file_type()?;
             if entrytype.is_dir() {
-                match Self::from_directory_impl(
-                    entry.path().to_str().unwrap(),
-                    rootdir,
-                    serverurl,
-                ) {
+                match Self::from_directory_impl(entry.path().to_str().unwrap(), rootdir, serverurl)
+                {
                     Ok(mut ret2) => ret.append(&mut ret2),
                     Err(err) => return Err(err),
                 };
             }
             if entrytype.is_file() {
                 let path = entry.path();
-                ret.push(Some(MSMOD::from_file(path.as_path(), rootdir, serverurl)));
+                ret.push(MSMOD::from_file(path.as_path(), rootdir, serverurl));
             }
         }
         Ok(ret)
     }
-    pub fn from_directory(
-        filedir: &str,
-        serverurl: Option<&str>,
-    ) -> Result<Vec<Option<MSMOD>>, Error> {
+    pub fn from_directory(filedir: &str, serverurl: Option<&str>) -> Result<Vec<MSMOD>, Error> {
         Self::from_directory_impl(filedir, filedir, serverurl)
     }
 }

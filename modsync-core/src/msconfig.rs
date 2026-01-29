@@ -1,38 +1,47 @@
-use crate::error::Error;
+use crate::{error::Error, msmod::MSMOD};
 
 use std::{fs::File, io::Read};
 
 use crate::utils::http_get;
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ReleaseInfo {
+    pub version: String,
+    pub changelog: String,
+    pub date: String,
+    pub adds: Option<Vec<String>>,
+    pub subs: Option<Vec<String>>,
+    pub mods: Option<Vec<String>>,
+    pub size: Option<isize>,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MSConfig {
     pub base_url: String,
-    pub changelog_url: Option<String>,
+    pub release_info: Vec<ReleaseInfo>,
     pub modlist_url: Option<String>,
     pub option_url: Option<String>,
     pub serverlist_url: Option<String>,
-    pub necessary_url: Option<String>,
-    pub force_sync_server_list: bool,
+    pub configpack: Option<MSMOD>,
     pub title: String,
 }
 impl MSConfig {
     pub fn new(
         base_url: String,
-        changelog_url: Option<String>,
         modlist_url: Option<String>,
-        necessary_url: Option<String>,
+        release_info: Vec<ReleaseInfo>,
         option_url: Option<String>,
         serverlist_url: Option<String>,
-        force_sync_server_list: bool,
+        configpack: Option<MSMOD>,
         title: String,
     ) -> MSConfig {
         MSConfig {
             base_url,
-            changelog_url,
+            release_info,
             modlist_url,
-            necessary_url,
             option_url,
             serverlist_url,
-            force_sync_server_list,
+            configpack,
             title,
         }
     }

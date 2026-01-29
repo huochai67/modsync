@@ -1,4 +1,4 @@
-use crate::error::Error;
+use crate::{error::Error, msconfig::ReleaseInfo};
 use std::{path::Path, sync::Arc, time::Duration};
 
 use crate::{
@@ -92,13 +92,10 @@ impl MSClient {
         self.inner.as_ref().msconfig.clone()
     }
 
-    pub async fn get_changelog(&self) -> Result<String, Error> {
-        match &self.inner.as_ref().msconfig.changelog_url {
-            Some(changelog_url) => Ok(http_get(changelog_url.as_str()).await?.text),
-            None => Err(Error::MSConfigNoChangeLogUrl),
-        }
+    pub async fn get_release_info(&self) -> Result<Vec<ReleaseInfo>, Error> {
+        Ok(self.inner.as_ref().msconfig.release_info.clone())
     }
-    pub async fn get_modlist(&self) -> Result<Vec<Option<MSMOD>>, Error> {
+    pub async fn get_modlist(&self) -> Result<Vec<MSMOD>, Error> {
         match &self.inner.as_ref().msconfig.modlist_url {
             Some(modlist_url) => Ok(serde_json::from_str(
                 http_get(modlist_url.as_str()).await?.text.as_str(),
@@ -106,12 +103,10 @@ impl MSClient {
             None => Err(Error::MSConfigNoModListUrl),
         }
     }
-    pub async fn get_necessary(&self) -> Result<Vec<Option<MSMOD>>, Error> {
-        match &self.inner.as_ref().msconfig.necessary_url {
-            Some(necessary_url) => Ok(serde_json::from_str(
-                http_get(necessary_url.as_str()).await?.text.as_str(),
-            )?),
-            None => Err(Error::MSConfigNoNecessaryListUrl),
+    pub async fn get_configpack(&self) -> Result<Option<MSMOD>, Error> {
+        match &self.inner.as_ref().msconfig.configpack {
+            Some(configpack) => Ok(Some(configpack.clone())),
+            None => Err(Error::MSConfigNoConfigPack),
         }
     }
     pub async fn get_option(&self) -> Result<String, Error> {
@@ -148,105 +143,84 @@ impl MSClient {
         }
     }
 
-    pub fn get_modlist_local(&self) -> Result<Vec<Option<MSMOD>>, Error> {
+    pub fn get_modlist_local(&self) -> Result<Vec<MSMOD>, Error> {
         let modspath = format!("{}/mods", self.inner.as_ref().path.as_ref().unwrap());
         let _ = std::fs::create_dir_all(modspath.as_str());
         MSMOD::from_directory(modspath.as_str(), None)
     }
 
     pub fn get_difflist_with(
-        path: String,
-        _locallist: Vec<Option<MSMOD>>,
-        remotelist: Vec<Option<MSMOD>>,
-        _necessarylist: Option<Vec<Option<MSMOD>>>,
+        locallist: &Vec<MSMOD>,
+        remotelist: &Vec<MSMOD>,
+        necessarylist: Option<&Vec<MSMOD>>,
     ) -> Result<Vec<MODDiff>, Error> {
-        let mut locallist = _locallist.clone();
         let mut ret: Vec<MODDiff> = vec![];
+        let mut copy_locallist = locallist.clone();
         for remotemod_ in remotelist.iter() {
-            assert!(remotemod_.as_ref().is_some());
-            let remotemod = remotemod_.as_ref().unwrap();
             let mut ok = false;
-            for localmod_ in locallist.iter_mut() {
-                if let Some(localmod) = localmod_.as_ref() {
-                    if localmod.md5 == remotemod.md5 {
-                        *localmod_ = None;
+            for localmod in copy_locallist.iter() {
+                //优先通过md5校验
+                if localmod.md5 == remotemod_.md5 {
+                    ok = true;
+                    break;
+                }
+
+                //其次通过modid校验
+                if remotemod_.modid.is_some() {
+                    if localmod.modid == remotemod_.modid {
+                        ret.push(MODDiff::new(
+                            Kind::MOD,
+                            remotemod_.path.clone(),
+                            Some(localmod.clone()),
+                            Some(remotemod_.clone()),
+                        ));
                         ok = true;
                         break;
                     }
+                }
+                //最后通过路径校验
+                if localmod.path == remotemod_.path {
+                    ret.push(MODDiff::new(
+                        Kind::MOD,
+                        remotemod_.path.clone(),
+                        Some(localmod.clone()),
+                        Some(remotemod_.clone()),
+                    ));
+                    ok = true;
+                    break;
+                }
+            }
+            if !ok {
+                ret.push(MODDiff::new(
+                    Kind::MOD,
+                    remotemod_.path.clone(),
+                    None,
+                    Some(remotemod_.clone()),
+                ))
+            } else {
+                //删除已经匹配的本地mod，减少后续循环开销
+                copy_locallist.retain(|x| x.md5 != remotemod_.md5);
+            }
+        }
 
-                    if remotemod.modid.is_some() {
-                        if localmod.modid == remotemod.modid {
-                            ret.push(MODDiff::new(
-                                Kind::MOD,
-                                remotemod.path.clone(),
-                                Some(localmod_.as_ref().unwrap().clone()),
-                                Some(remotemod.clone()),
-                            ));
-                            *localmod_ = None;
-                            ok = true;
-                            break;
-                        }
-                    }
-
-                    if localmod.path == remotemod.path {
-                        ret.push(MODDiff::new(
-                            Kind::MOD,
-                            remotemod.path.clone(),
-                            Some(localmod_.as_ref().unwrap().clone()),
-                            Some(remotemod.clone()),
-                        ));
-                        *localmod_ = None;
+        for localmod in copy_locallist.iter() {
+            let mut ok = false;
+            if let Some(necessarylist) = necessarylist {
+                for necessary in necessarylist.iter() {
+                    if localmod.md5 == necessary.md5 {
                         ok = true;
                         break;
                     }
                 }
             }
-            if ok {
-                continue;
-            }
 
-            ret.push(MODDiff::new(
-                Kind::MOD,
-                remotemod.path.clone(),
-                None,
-                Some(remotemod.clone()),
-            ))
-        }
-
-        for localmod_ in locallist.iter() {
-            if let Some(localmod) = localmod_ {
+            if !ok {
                 ret.push(MODDiff::new(
                     Kind::MOD,
                     localmod.path.clone(),
                     Some(localmod.clone()),
                     None,
-                ))
-            }
-        }
-
-        if let Some(necessarylist) = _necessarylist {
-            for _necessary in necessarylist.iter() {
-                let necessary = _necessary.as_ref().unwrap();
-                let localpathstr = format!("{}/{}", path.as_str(), necessary.path);
-                let localpath = Path::new(localpathstr.as_str());
-                if localpath.exists() {
-                    let localfile = MSMOD::from_file(localpath, path.as_str(), None);
-                    if localfile.md5 != necessary.md5 {
-                        ret.push(MODDiff::new(
-                            Kind::PLAIN,
-                            necessary.path.clone(),
-                            Some(localfile),
-                            _necessary.clone(),
-                        ));
-                    };
-                    continue;
-                }
-                ret.push(MODDiff::new(
-                    Kind::PLAIN,
-                    necessary.path.clone(),
-                    None,
-                    _necessary.clone(),
-                ))
+                ));
             }
         }
 
@@ -257,12 +231,12 @@ impl MSClient {
         let modlist_local = self.get_modlist_local()?;
         match self.get_modlist().await {
             Ok(modlist_remote) => {
-                let necessarylist = self.get_necessary().await?;
+                // let necessarylist = self.get_necessary().await?;
                 Self::get_difflist_with(
-                    self.inner.as_ref().path.as_ref().unwrap().into(),
-                    modlist_local,
-                    modlist_remote,
-                    Some(necessarylist),
+                    // self.inner.as_ref().path.as_ref().unwrap().into(),
+                    &modlist_local,
+                    &modlist_remote,
+                    None,
                 )
             }
             Err(err) => Err(err),
@@ -272,10 +246,13 @@ impl MSClient {
     pub async fn apply_diff(
         &self,
         diffs: &[MODDiff],
-    ) -> Result<Vec<Box<dyn MSTask + Send + Sync>>, Error> {
-        let mut tasks: Vec<Box<dyn MSTask + Send + Sync>> = vec![];
-        let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build()?;
+    ) -> Result<Vec<Box<dyn MSTask + Send>>, Error> {
+        let mut tasks: Vec<Box<dyn MSTask + Send>> = vec![];
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()?;
         for diff in diffs {
+            //优先使用本地路径
             let modpath = if let Some(localmod) = &diff.local {
                 localmod.path.as_ref()
             } else if let Some(remotemod) = &diff.remote {
@@ -285,6 +262,8 @@ impl MSClient {
                 #[allow(unreachable_code)]
                 ""
             };
+
+            //根据类型生成全路径
             let fullpath = match diff.kind {
                 Kind::PLAIN => format!(
                     "{}/{}",
@@ -299,18 +278,22 @@ impl MSClient {
             };
 
             if let Some(_local) = &diff.local {
-                tasks.push(Box::new(DeleteTask::build(
-                    diff.name.clone(),
-                    fullpath.into(),
-                )));
-            } else if let Some(remote) = &diff.remote {
-                let cc: reqwest::Client = client.clone();
-                tasks.push(Box::new(DownloadTask::build(
-                    cc,
-                    diff.name.clone(),
-                    remote.url.as_ref().unwrap().clone(),
-                    fullpath,
-                )));
+                //存在本地与远程文件，进行下载覆盖
+                if let Some(remote) = &diff.remote {
+                    let cc: reqwest::Client = client.clone();
+                    tasks.push(Box::new(DownloadTask::build(
+                        cc,
+                        diff.name.clone(),
+                        remote.url.as_ref().unwrap().clone(),
+                        fullpath,
+                    )))
+                } else {
+                    //不存在远程文件，直接删除
+                    tasks.push(Box::new(DeleteTask::build(
+                        diff.name.clone(),
+                        fullpath.into(),
+                    )))
+                }
             }
         }
         Ok(tasks)
