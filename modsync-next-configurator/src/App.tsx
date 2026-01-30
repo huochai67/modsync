@@ -6,9 +6,6 @@ import { invoke } from '@tauri-apps/api/core';
 
 const App: React.FC = () => {
     // State
-    const [history, setHistory] = useState<ReleaseInfo[]>([]);
-    const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [form, setForm] = useState<FormState>({
         version: '',
         changelog: '',
@@ -18,6 +15,8 @@ const App: React.FC = () => {
         mods: []
     });
 
+    const [history, setHistory] = useState<ReleaseInfo[]>([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     // Load History
     const fetchHistoryData = useCallback(async () => {
         setIsLoadingHistory(true);
@@ -34,12 +33,12 @@ const App: React.FC = () => {
 
 
     }, []);
-
     useEffect(() => {
         fetchHistoryData();
     }, []);
 
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!form.version || !form.changelog) {
