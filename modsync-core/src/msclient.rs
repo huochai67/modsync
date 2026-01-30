@@ -13,11 +13,18 @@ pub enum Kind {
     PLAIN = 0,
     MOD = 1,
 }
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub enum DiffType {
+    MODIFIED = 0,
+    NEWED = 1,
+    DELETED = 2,
+}
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct MODDiff {
     pub kind: Kind,
     pub name: String,
+    pub difftype: DiffType,
     pub local: Option<MSMOD>,
     pub remote: Option<MSMOD>,
 }
@@ -27,6 +34,12 @@ impl MODDiff {
         MODDiff {
             kind,
             name,
+            difftype: match (local.is_some(), remote.is_some()) {
+                (true, true) => DiffType::MODIFIED,
+                (false, true) => DiffType::NEWED,
+                (true, false) => DiffType::DELETED,
+                (false, false) => panic!("both local and remote modinfo are none"),
+            },
             local,
             remote,
         }
