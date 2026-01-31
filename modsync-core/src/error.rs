@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::mstask::MSTaskStatus;
+use crate::mstask::TaskEvent;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -14,10 +14,10 @@ pub enum Error {
     StdIO(#[from] std::io::Error),
 
     #[error(transparent)]
-    TokioSyncTrySend(#[from] tokio::sync::mpsc::error::TrySendError<MSTaskStatus>),
+    TokioSyncTrySend(#[from] tokio::sync::mpsc::error::TrySendError<TaskEvent>),
 
     #[error(transparent)]
-    TokioSyncSend(#[from] tokio::sync::mpsc::error::SendError<MSTaskStatus>),
+    TokioSyncSend(#[from] tokio::sync::mpsc::error::SendError<TaskEvent>),
 
     #[error("tokio mpsc action failed.")]
     TokioMpscError,

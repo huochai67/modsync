@@ -1,136 +1,186 @@
+use futures_util::StreamExt;
+use std::path::Path;
+use tokio::fs::{self, File};
+use tokio::io::AsyncWriteExt;
+use tokio::sync::mpsc;
+
 use crate::error::Error;
-use std::path::{Path, PathBuf};
-use std::time::Duration;
 
-use async_trait::async_trait;
-use futures::StreamExt;
-use tokio::sync::mpsc::Sender;
-use tokio::{fs::File, io::AsyncWriteExt};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub struct MSTaskStatus {
-    pub name: String,
-    pub total: u64,
-    pub now: u64,
-    pub finish: bool,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TaskEventType {
+    Started,
+    Progress,
+    Finished,
+    Error,
 }
 
-impl MSTaskStatus {
-    pub fn new(name: String, total: u64, now: u64, finish: bool) -> Self {
-        MSTaskStatus {
-            name,
-            total,
-            now,
-            finish,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskEvent {
+    pub event_type: TaskEventType,
+    pub id: usize,
+    pub downloaded: Option<u64>,
+    pub total: Option<u64>,
+    pub error_message: Option<String>,
+}
+
+impl TaskEvent {
+    pub fn started(id: usize) -> Self {
+        Self {
+            event_type: TaskEventType::Started,
+            id,
+            downloaded: None,
+            total: None,
+            error_message: None,
+        }
+    }
+
+    pub fn progress(id: usize, downloaded: u64, total: u64) -> Self {
+        Self {
+            event_type: TaskEventType::Progress,
+            id,
+            downloaded: Some(downloaded),
+            total: Some(total),
+            error_message: None,
+        }
+    }
+
+    pub fn finished(id: usize) -> Self {
+        Self {
+            event_type: TaskEventType::Finished,
+            id,
+            downloaded: None,
+            total: None,
+            error_message: None,
+        }
+    }
+
+    pub fn error(id: usize, message: String) -> Self {
+        Self {
+            event_type: TaskEventType::Error,
+            id,
+            downloaded: None,
+            total: None,
+            error_message: Some(message),
         }
     }
 }
 
-#[async_trait]
-pub trait MSTask {
-    async fn start(&self, receiver: Sender<MSTaskStatus>) -> Result<(), Error>;
+pub struct FileTask {
+    id: usize,
+    file_path: String,
+    new_path: Option<String>,
+    tx: mpsc::Sender<TaskEvent>,
+}
+
+impl FileTask {
+    pub fn new(
+        id: usize,
+        file_path: String,
+        new_path: Option<String>,
+        tx: mpsc::Sender<TaskEvent>,
+    ) -> Self {
+        Self {
+            id,
+            file_path,
+            new_path,
+            tx,
+        }
+    }
+
+    pub fn delete(id: usize, file_path: String, tx: mpsc::Sender<TaskEvent>) -> Self {
+        Self {
+            id,
+            file_path,
+            new_path: None,
+            tx,
+        }
+    }
+
+    pub fn rename(
+        id: usize,
+        file_path: String,
+        new_path: String,
+        tx: mpsc::Sender<TaskEvent>,
+    ) -> Self {
+        Self {
+            id,
+            file_path,
+            new_path: Some(new_path),
+            tx,
+        }
+    }
+
+    pub async fn execute(self) -> Result<(), Error> {
+        self.tx.send(TaskEvent::started(self.id)).await?;
+
+        let file_path = Path::new(&self.file_path);
+        if !file_path.exists() {
+            return Err(Error::from(tokio::io::Error::new(
+                tokio::io::ErrorKind::AddrNotAvailable,
+                "File path does not exist",
+            )));
+        }
+
+        match self.new_path {
+            Some(new_path) => fs::rename(file_path, new_path).await?,
+            None => {
+                fs::remove_file(file_path).await?;
+            }
+        }
+
+        self.tx.send(TaskEvent::finished(self.id)).await?;
+        Ok(())
+    }
 }
 
 pub struct DownloadTask {
-    reqclient: reqwest::Client,
-    name: String,
+    id: usize,
     url: String,
-    savepath: String,
+    file_path: String,
+    client: reqwest::Client,
+    tx: mpsc::Sender<TaskEvent>,
 }
-
 impl DownloadTask {
-    pub fn build(
-        reqclient: reqwest::Client,
-        name: String,
+    pub fn new(
+        id: usize,
         url: String,
-        savepath: String,
-    ) -> DownloadTask {
-        DownloadTask {
-            reqclient,
-            name,
+        file_path: String,
+        client: reqwest::Client,
+        tx: mpsc::Sender<TaskEvent>,
+    ) -> Self {
+        Self {
+            id,
             url,
-            savepath,
+            file_path,
+            client,
+            tx,
         }
     }
-}
+    pub async fn execute(self) -> Result<(), Error> {
+        // 1. 发起请求
+        let response = self.client.get(&self.url).send().await?;
+        let total_size = response.content_length().unwrap_or(0);
+        self.tx.send(TaskEvent::started(self.id)).await?;
+        // 2. 创建文件
+        let mut file = File::create(&self.file_path).await?;
+        let mut downloaded: u64 = 0;
+        // 3. 流式读取，避免大文件占用内存
+        let mut stream = response.bytes_stream();
+        while let Some(item) = stream.next().await {
+            let chunk = item?;
+            file.write_all(&chunk).await?;
 
-#[async_trait]
-impl MSTask for DownloadTask {
-    async fn start(&self, receiver: Sender<MSTaskStatus>) -> Result<(), Error> {
-        let path = Path::new(self.savepath.as_str()).parent().unwrap();
-        tokio::fs::create_dir_all(path).await?;
-
-        let mut save_file = File::create(self.savepath.as_str()).await?;
-
-        // Task start
-        if let Err(_) = receiver
-            .send(MSTaskStatus::new(self.name.clone(), 0, 0, false))
-            .await
-        {
-            return Err(Error::MSTaskMPSC);
+            downloaded += chunk.len() as u64;
+            // 4. 发送进度 (对于100KB的小文件，这会非常快)
+            let _ = self
+                .tx
+                .send(TaskEvent::progress(self.id, downloaded, total_size))
+                .await;
         }
-
-        let resp = self.reqclient.get(self.url.as_str()).send().await?;
-        let totalsize = match resp.content_length() {
-            Some(ts) => ts,
-            None => 0,
-        };
-
-        let mut stream = resp.bytes_stream();
-        let mut downloadedsize = 0;
-        while let Some(chunk_result) = stream.next().await {
-            let chunk = chunk_result?;
-            downloadedsize += chunk.len() as u64;
-            save_file.write_all(&chunk).await?;
-            receiver.try_send(MSTaskStatus::new(
-                self.name.clone(),
-                totalsize,
-                downloadedsize,
-                false,
-            ))?;
-            tokio::time::sleep(Duration::from_millis(5)).await;
-        }
-        save_file.flush().await?;
-        match receiver
-            .send(MSTaskStatus::new(
-                self.name.clone(),
-                totalsize,
-                downloadedsize,
-                true,
-            ))
-            .await
-        {
-            Ok(_) => Ok(()),
-            Err(_) => Err(Error::MSTaskMPSC),
-        }
-    }
-}
-
-pub struct DeleteTask {
-    path: Option<PathBuf>,
-    name: String,
-}
-
-impl DeleteTask {
-    pub fn build(name: String, path: PathBuf) -> DeleteTask {
-        DeleteTask {
-            path: Some(path),
-            name,
-        }
-    }
-}
-
-#[async_trait]
-impl MSTask for DeleteTask {
-    async fn start(&self, receiver: Sender<MSTaskStatus>) -> Result<(), Error> {
-        let path = self.path.as_ref().unwrap();
-        std::fs::remove_file(path)?;
-        match receiver
-            .send(MSTaskStatus::new(self.name.clone(), 1, 1, true))
-            .await
-        {
-            Ok(_) => Ok(()),
-            Err(_) => Err(Error::MSTaskMPSC),
-        }
+        file.flush().await?;
+        self.tx.send(TaskEvent::finished(self.id)).await?;
+        Ok(())
     }
 }

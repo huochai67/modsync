@@ -6,16 +6,11 @@ use std::sync::Arc;
 
 use modsync_core::{
     msclient::{DiffType, MODDiff, MSClient, MSClientBuilder},
-    msconfig::{MSConfig, ReleaseInfo},
+    msconfig::{MSConfig, ReleaseInfo}, mstaskmanager::{TaskManager, TaskRequest, TaskStatus},
 };
 use serde::Serialize;
 use tauri::{Manager, State};
 use tokio::sync::Mutex;
-
-use crate::{
-    task::DownloadTask,
-    taskmanager::{TaskManager, TaskRequest, TaskStatus},
-};
 
 fn getdotminecraft() -> String {
     let pwd = format!(

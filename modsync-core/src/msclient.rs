@@ -1,10 +1,9 @@
 use crate::{error::Error, msconfig::ReleaseInfo};
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use crate::{
     msconfig::MSConfig,
     msmod::MSMOD,
-    mstask::{DeleteTask, DownloadTask, MSTask},
     utils::{http_download, http_get},
 };
 
@@ -256,59 +255,59 @@ impl MSClient {
         }
     }
 
-    pub async fn apply_diff(
-        &self,
-        diffs: &[MODDiff],
-    ) -> Result<Vec<Box<dyn MSTask + Send>>, Error> {
-        let mut tasks: Vec<Box<dyn MSTask + Send>> = vec![];
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(10))
-            .build()?;
-        for diff in diffs {
-            //优先使用本地路径
-            let modpath = if let Some(localmod) = &diff.local {
-                localmod.path.as_ref()
-            } else if let Some(remotemod) = &diff.remote {
-                remotemod.path.as_ref()
-            } else {
-                panic!("apply a moddiff which dont contain a vaild modinfo");
-                #[allow(unreachable_code)]
-                ""
-            };
+    // pub async fn apply_diff(
+    //     &self,
+    //     diffs: &[MODDiff],
+    // ) -> Result<Vec<Box<dyn MSTask + Send>>, Error> {
+    //     let mut tasks: Vec<Box<dyn MSTask + Send>> = vec![];
+    //     let client = reqwest::Client::builder()
+    //         .timeout(Duration::from_secs(10))
+    //         .build()?;
+    //     for diff in diffs {
+    //         //优先使用本地路径
+    //         let modpath = if let Some(localmod) = &diff.local {
+    //             localmod.path.as_ref()
+    //         } else if let Some(remotemod) = &diff.remote {
+    //             remotemod.path.as_ref()
+    //         } else {
+    //             panic!("apply a moddiff which dont contain a vaild modinfo");
+    //             #[allow(unreachable_code)]
+    //             ""
+    //         };
 
-            //根据类型生成全路径
-            let fullpath = match diff.kind {
-                Kind::PLAIN => format!(
-                    "{}/{}",
-                    self.inner.as_ref().path.as_ref().unwrap().as_str(),
-                    modpath
-                ),
-                Kind::MOD => format!(
-                    "{}/mods/{}",
-                    self.inner.as_ref().path.as_ref().unwrap().as_str(),
-                    modpath
-                ),
-            };
+    //         //根据类型生成全路径
+    //         let fullpath = match diff.kind {
+    //             Kind::PLAIN => format!(
+    //                 "{}/{}",
+    //                 self.inner.as_ref().path.as_ref().unwrap().as_str(),
+    //                 modpath
+    //             ),
+    //             Kind::MOD => format!(
+    //                 "{}/mods/{}",
+    //                 self.inner.as_ref().path.as_ref().unwrap().as_str(),
+    //                 modpath
+    //             ),
+    //         };
 
-            if let Some(_local) = &diff.local {
-                //存在本地与远程文件，进行下载覆盖
-                if let Some(remote) = &diff.remote {
-                    let cc: reqwest::Client = client.clone();
-                    tasks.push(Box::new(DownloadTask::build(
-                        cc,
-                        diff.name.clone(),
-                        remote.url.as_ref().unwrap().clone(),
-                        fullpath,
-                    )))
-                } else {
-                    //不存在远程文件，直接删除
-                    tasks.push(Box::new(DeleteTask::build(
-                        diff.name.clone(),
-                        fullpath.into(),
-                    )))
-                }
-            }
-        }
-        Ok(tasks)
-    }
+    //         if let Some(_local) = &diff.local {
+    //             //存在本地与远程文件，进行下载覆盖
+    //             if let Some(remote) = &diff.remote {
+    //                 let cc: reqwest::Client = client.clone();
+    //                 tasks.push(Box::new(DownloadTask::build(
+    //                     cc,
+    //                     diff.name.clone(),
+    //                     remote.url.as_ref().unwrap().clone(),
+    //                     fullpath,
+    //                 )))
+    //             } else {
+    //                 //不存在远程文件，直接删除
+    //                 tasks.push(Box::new(DeleteTask::build(
+    //                     diff.name.clone(),
+    //                     fullpath.into(),
+    //                 )))
+    //             }
+    //         }
+    //     }
+    //     Ok(tasks)
+    // }
 }

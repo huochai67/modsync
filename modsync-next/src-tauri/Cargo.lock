@@ -2371,6 +2371,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "futures",
+ "futures-util",
  "md5",
  "reqwest 0.11.27",
  "serde",
@@ -2385,13 +2386,9 @@ dependencies = [
 name = "modsync-next"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "async-trait",
  "build-info",
  "build-info-build",
- "futures-util",
  "modsync-core",
- "reqwest 0.11.27",
  "serde",
  "serde_json",
  "tauri",
