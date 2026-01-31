@@ -1,7 +1,7 @@
 
 import React, { ReactElement } from 'react';
 
-import { Avatar, Chip, Description, Label, ListBox, ListBoxProps, Surface } from "@heroui/react";
+import { Chip, Description, Label, ListBox } from "@heroui/react";
 
 import { MODDiff, MSMOD } from '@/types';
 import { Binary, File, FileCode, FileMinus, FilePlus, Package, ShieldCheck } from 'lucide-react';

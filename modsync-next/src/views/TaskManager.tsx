@@ -1,18 +1,15 @@
 
-import React, { useCallback, useEffect } from 'react';
-
-import { RuntimeContext } from '../runtimecontext';
+import React, { useEffect } from 'react';
 import TaskProgress from '@/components/TaskProgress';
 import { invoke } from '@tauri-apps/api/core';
 
 import { TaskStatus } from '@/types';
 
 const TaskManager: React.FC = () => {
-    const runtime = React.useContext(RuntimeContext);
 
     const [task_status, setTaskStatus] = React.useState<Array<TaskStatus>>([]);
     useEffect(() => {
-        const _intervalId = setInterval(async () => {
+        setInterval(async () => {
             try {
                 // const is_running = await invoke<boolean>('is_running');
                 // if (!is_running) {

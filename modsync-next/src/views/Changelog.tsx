@@ -3,7 +3,7 @@ import React from 'react';
 
 import { RuntimeContext } from '../runtimecontext';
 import HistoryItem from '@/components/HistoryItem';
-import { Card, Chip, Separator } from '@heroui/react';
+import { Chip } from '@heroui/react';
 import { CircleCheck } from 'lucide-react';
 
 const Changelog: React.FC = () => {

@@ -2,16 +2,14 @@
 import React from 'react';
 
 import { RuntimeContext } from '../runtimecontext';
-import HistoryItem from '@/components/HistoryItem';
-import { Button, Card, CardFooter, Separator } from '@heroui/react';
+
+import { Button, Card, Separator } from '@heroui/react';
 import { invoke } from '@tauri-apps/api/core';
 import SyncButton from '@/components/SyncButton';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 const Utilities: React.FC = () => {
     const runtime = React.useContext(RuntimeContext);
-    const history = runtime.release_info;
-
 
     const commoncallback = async (func: string) => {
         await invoke<void>(func);
@@ -27,10 +25,10 @@ const Utilities: React.FC = () => {
                 </Card.Header>
                 <Separator />
                 <Card.Content className='flex flex-row flex-wrap gap-3'>
-                    <SyncButton onClicked={() => commoncallback("download_options")} >按键设置</SyncButton>
-                    <SyncButton onClicked={() => commoncallback("download_serverlist")} >服务器列表</SyncButton>
-                    <SyncButton onClicked={() => commoncallback("download_hmcl")} >HMCL</SyncButton>
-                    <SyncButton onClicked={() => commoncallback("download_pcl")} >PCL</SyncButton>
+                    <SyncButton isDisabled={!runtime.has_options} onClicked={() => commoncallback("download_options")} >按键设置</SyncButton>
+                    <SyncButton isDisabled={!runtime.has_serverdat} onClicked={() => commoncallback("download_serverlist")} >服务器列表</SyncButton>
+                    <SyncButton isDisabled={!runtime.has_hcml} onClicked={() => commoncallback("download_hmcl")} >HMCL</SyncButton>
+                    <SyncButton isDisabled={!runtime.has_pclce} onClicked={() => commoncallback("download_pcl")} >PCL</SyncButton>
                 </Card.Content>
             </Card>
             <Card className='w-full'>

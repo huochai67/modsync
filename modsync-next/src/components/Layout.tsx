@@ -1,7 +1,7 @@
 
 import React, { useCallback, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileDiff, Settings2, List, ShipWheel, Layers, Info } from 'lucide-react';
+import { LayoutDashboard, FileDiff, Settings2, List, Layers } from 'lucide-react';
 
 import { invoke } from '@tauri-apps/api/core';
 import { Window } from '@tauri-apps/api/window'
@@ -9,12 +9,13 @@ import { RuntimeInfo } from '@/types';
 import { RuntimeContext } from '@/runtimecontext';
 import { Button, Separator } from '@heroui/react';
 import { SiQq } from '@icons-pack/react-simple-icons';
+import { MOCK_RUNTIME_INFO } from '@/mockData';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [runtime, setruntime] = React.useState<RuntimeInfo>({ title: "", version: "", buildinfo: "", is_update_available: false, release_info: [] });
+  const [runtime, setruntime] = React.useState<RuntimeInfo>(MOCK_RUNTIME_INFO);
   const [initialized, setInitialized] = React.useState(false);
 
 

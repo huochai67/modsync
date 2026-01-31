@@ -52,7 +52,10 @@ export interface RuntimeInfo {
   title: string;
   version: string;
   buildinfo: string;
-  is_update_available: boolean;
+  has_serverdat: boolean,
+  has_options: boolean,
+  has_hcml: boolean,
+  has_pclce: boolean,
   release_info: ReleaseInfo[];
 }
 

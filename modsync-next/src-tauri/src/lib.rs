@@ -1,12 +1,10 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-mod task;
-mod taskmanager;
-
 use std::sync::Arc;
 
 use modsync_core::{
     msclient::{DiffType, MODDiff, MSClient, MSClientBuilder},
-    msconfig::{MSConfig, ReleaseInfo}, mstaskmanager::{TaskManager, TaskRequest, TaskStatus},
+    msconfig::{MSConfig, ReleaseInfo},
+    mstaskmanager::{TaskManager, TaskRequest, TaskStatus},
 };
 use serde::Serialize;
 use tauri::{Manager, State};
@@ -52,7 +50,10 @@ struct RuntimeInfo {
     title: String,
     version: String,
     buildinfo: String,
-    is_update_available: bool,
+    has_serverdat: bool,
+    has_options: bool,
+    has_hcml: bool,
+    has_pclce: bool,
     release_info: Vec<ReleaseInfo>,
 }
 struct AppRuntimeInner {
@@ -85,18 +86,16 @@ impl AppRuntimeInner {
 type AppRuntime = Mutex<AppRuntimeInner>;
 
 #[tauri::command]
-async fn download_serverlist(state: State<'_, AppRuntime>) -> Result<(), Error> {
+async fn download_utility(state: State<'_, AppRuntime>, utility: &str) -> Result<(), Error> {
     let mut state = state.lock().await;
     let client = state.try_get_client().await?;
-    client.sync_serverlist().await?;
-    Ok(())
-}
-
-#[tauri::command]
-async fn download_options(state: State<'_, AppRuntime>) -> Result<(), Error> {
-    let mut state = state.lock().await;
-    let client = state.try_get_client().await?;
-    client.sync_option().await?;
+    match utility {
+        "hmcl" => client.sync_hcml().await?,
+        "pclce" => client.sync_pclce().await?,
+        "options" => client.sync_options().await?,
+        "serverlist" => client.sync_serverdat().await?,
+        _ => return Err(Error::Err),
+    }
     Ok(())
 }
 
@@ -193,12 +192,11 @@ async fn init_runtime(state: State<'_, AppRuntime>) -> Result<(), Error> {
     let mut state = state.lock().await;
     let client = state.try_get_client().await?;
 
-    let config = client.get_remoteconfig();
+    let config = client.get_config();
     let release_info = config.release_info;
-    let title = config.title;
 
     state.runtime_info = Some(RuntimeInfo {
-        title,
+        title: client.get_title(),
         version: format!("v{}", env!("CARGO_PKG_VERSION")),
         buildinfo: {
             let bi = build_info();
@@ -216,7 +214,10 @@ async fn init_runtime(state: State<'_, AppRuntime>) -> Result<(), Error> {
             )
         },
         release_info,
-        is_update_available: false,
+        has_serverdat: client.get_serverdat().is_some(),
+        has_options: client.get_options().is_some(),
+        has_hcml: client.get_launcher_hmcl().is_some(),
+        has_pclce: client.get_launcher_pclce().is_some(),
     });
 
     Ok(())
@@ -262,8 +263,7 @@ pub fn run() {
             is_running,
             summit_task,
             getall_task,
-            download_options,
-            download_serverlist,
+            download_utility,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,5 +1,5 @@
 
-import { FileDiff, RuntimeInfo, TaskRequest, ReleaseInfo, TaskType, MODDiff, Kind, MSMOD, TaskEventType, TaskStatus, DiffType } from './types';
+import { FileDiff, RuntimeInfo, TaskRequest, ReleaseInfo, TaskType, MODDiff, Kind, MSMOD, DiffType } from './types';
 
 export const MOCK_DIFFS: FileDiff[] = [
   {
@@ -174,6 +174,9 @@ export const MOCK_RUNTIME_INFO: RuntimeInfo = {
   title: 'ModSync Next',
   version: '2.1.0',
   buildinfo: 'build-20260130-001',
-  is_update_available: false,
-  release_info: MOCK_RELEASES
+  release_info: MOCK_RELEASES,
+  has_serverdat: false,
+  has_options: false,
+  has_hcml: false,
+  has_pclce: false
 };

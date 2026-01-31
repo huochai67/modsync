@@ -4,11 +4,12 @@ import React from 'react';
 
 interface SyncButtonProps {
     children?: React.ReactNode;
+    isDisabled?: boolean;
     onClicked: () => Promise<void>;
 }
 
-const SyncButton: React.FC<SyncButtonProps> = ({ onClicked, children }) => {
-    const [disabled, setDisabled] = React.useState(false);
+const SyncButton: React.FC<SyncButtonProps> = ({ onClicked, isDisabled, children }) => {
+    const [__disabled, setDisabled] = React.useState(isDisabled);
 
     const onClick = async () => {
         setDisabled(true);
@@ -22,7 +23,7 @@ const SyncButton: React.FC<SyncButtonProps> = ({ onClicked, children }) => {
     }
 
     return (
-        <Button onClick={onClick} isDisabled={disabled}>{children}</Button>
+        <Button onClick={onClick} isDisabled={__disabled}>{children}</Button>
     );
 };
 

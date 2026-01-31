@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
 import { ReleaseInfo } from '../types';
-import Badge from './Badge';
 import { formatBytes } from '@/utils';
 import { Chip } from '@heroui/react';
 
@@ -19,7 +18,7 @@ const HistoryItem: React.FC<HistoryItemProps> = ({ release }) => {
                 onClick={() => setExpanded(!expanded)}
             >
                 <div className="flex items-center space-x-4">
-                    <div className="bg-accent p-2 rounded-lg">
+                    <div className="bg-accent-hover w-16 text-center overflow-hidden p-2 rounded-lg">
                         <span className=" font-bold text-sm tracking-tight">{release.version}</span>
                     </div>
                     <div>
