@@ -173,7 +173,7 @@ impl MSClient {
         match self.get_options() {
             Some(option_url) => Ok(http_download(
                 option_url.as_str(),
-                format!("{}/option.txt", self.get_path().unwrap()).as_str(),
+                format!("{}/options.txt", self.get_path().unwrap()).as_str(),
             )
             .await?),
             None => Err(Error::MSConfigNoOptionsUrl),
@@ -183,7 +183,7 @@ impl MSClient {
         match self.get_launcher_hmcl() {
             Some(hmcl_url) => Ok(http_download(
                 hmcl_url.as_str(),
-                format!("{}/hmcl.exe", self.get_path().unwrap()).as_str(),
+                format!("{}/../HMCL.exe", self.get_path().unwrap()).as_str(),
             )
             .await?),
             None => Err(Error::MSConfigNoHMCLUrl),
@@ -193,7 +193,7 @@ impl MSClient {
         match self.get_launcher_pclce() {
             Some(pclce_url) => Ok(http_download(
                 pclce_url.as_str(),
-                format!("{}/PCL-CE.exe", self.get_path().unwrap()).as_str(),
+                format!("{}/../PCL-CE.exe", self.get_path().unwrap()).as_str(),
             )
             .await?),
             None => Err(Error::MSConfigNoPCLCEUrl),

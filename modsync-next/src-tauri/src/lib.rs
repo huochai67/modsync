@@ -93,7 +93,7 @@ async fn download_utility(state: State<'_, AppRuntime>, utility: &str) -> Result
         "hmcl" => client.sync_hcml().await?,
         "pclce" => client.sync_pclce().await?,
         "options" => client.sync_options().await?,
-        "serverlist" => client.sync_serverdat().await?,
+        "serverdat" => client.sync_serverdat().await?,
         _ => return Err(Error::Err),
     }
     Ok(())
