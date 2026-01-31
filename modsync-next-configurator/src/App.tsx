@@ -7,23 +7,29 @@ import { invoke } from '@tauri-apps/api/core';
 const App: React.FC = () => {
     // State
     const [form, setForm] = useState<FormState>({
-        version: '1.0',
-        changelog: '无可奉告',
-        serverUrl: 'http://127.0.0.1:8086/',
+        version: '',
+        changelog: '',
+        serverUrl: '',
         adds: [],
         subs: [],
         mods: []
     });
 
-    const [history, setHistory] = useState<ReleaseInfo[]>([]);
+    const [config, setConfig] = useState<MSConfig>({
+        base_url: '',
+        release_info: [],
+        title: ''
+    });
+    const history = config.release_info;
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-    // Load History
-    const fetchHistoryData = useCallback(async () => {
+    // Load Config
+    const fetchConfig = useCallback(async () => {
         setIsLoadingHistory(true);
         try {
-            const config = await invoke<MSConfig | null>('get_config');
-            setForm({ ...form, serverUrl: config?.base_url || form.serverUrl });
-            setHistory(config?.release_info || []);
+            const config = await invoke<MSConfig>('get_config');
+            setConfig(config)
+            const lastrelease = config.release_info[config.release_info.length - 1];
+            setForm({ ...form, serverUrl: config.base_url, changelog: lastrelease.changelog, version: lastrelease.version });
             console.log("Config fetched successfully.", config);
         } catch (error) {
             alert("Failed to load history : " + error);
@@ -34,7 +40,7 @@ const App: React.FC = () => {
 
     }, []);
     useEffect(() => {
-        fetchHistoryData();
+        fetchConfig();
     }, []);
 
 
