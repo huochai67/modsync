@@ -5,6 +5,32 @@ use std::{fs::File, io::Read};
 use crate::utils::http_get;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct MetaData {
+    pub options_url: Option<String>,
+    pub serverdat_url: Option<String>,
+    pub configpack: Option<MSMOD>,
+    pub launcher_hmcl_url: Option<String>,
+    pub launcher_pclce_url: Option<String>,
+}
+impl MetaData {
+    pub fn new(
+        options_url: Option<String>,
+        serverdat_url: Option<String>,
+        configpack: Option<MSMOD>,
+        launcher_hmcl_url: Option<String>,
+        launcher_pclce_url: Option<String>,
+    ) -> MetaData {
+        MetaData {
+            options_url,
+            serverdat_url,
+            configpack,
+            launcher_hmcl_url,
+            launcher_pclce_url,
+        }
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ReleaseInfo {
     pub version: String,
     pub changelog: String,
@@ -20,9 +46,7 @@ pub struct MSConfig {
     pub base_url: String,
     pub release_info: Vec<ReleaseInfo>,
     pub modlist_url: Option<String>,
-    pub option_url: Option<String>,
-    pub serverlist_url: Option<String>,
-    pub configpack: Option<MSMOD>,
+    pub metadata: Option<MetaData>,
     pub title: String,
 }
 impl MSConfig {
@@ -30,18 +54,14 @@ impl MSConfig {
         base_url: String,
         modlist_url: Option<String>,
         release_info: Vec<ReleaseInfo>,
-        option_url: Option<String>,
-        serverlist_url: Option<String>,
-        configpack: Option<MSMOD>,
+        metadata: Option<MetaData>,
         title: String,
     ) -> MSConfig {
         MSConfig {
             base_url,
             release_info,
             modlist_url,
-            option_url,
-            serverlist_url,
-            configpack,
+            metadata,
             title,
         }
     }

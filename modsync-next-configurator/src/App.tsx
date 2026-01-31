@@ -7,9 +7,9 @@ import { invoke } from '@tauri-apps/api/core';
 const App: React.FC = () => {
     // State
     const [form, setForm] = useState<FormState>({
-        version: '',
-        changelog: '',
-        serverUrl: 'https://api.release-server.com/v1',
+        version: '1.0',
+        changelog: '无可奉告',
+        serverUrl: 'http://127.0.0.1:8086/',
         adds: [],
         subs: [],
         mods: []

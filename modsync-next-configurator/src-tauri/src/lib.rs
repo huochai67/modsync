@@ -8,6 +8,7 @@ use std::vec;
 
 use modsync_core::msclient::MSClient;
 use modsync_core::msconfig::MSConfig;
+use modsync_core::msconfig::MetaData;
 use modsync_core::msconfig::ReleaseInfo;
 use modsync_core::msmod::MSMOD;
 
@@ -204,6 +205,7 @@ fn generate_releaseinfo(
 fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Result<(), String> {
     let _ = create_dir_all("./data/data");
 
+    // Build ModList
     if !Path::new("./data/data/mods").exists() {
         return Err("无mod文件夹".into());
     }
@@ -222,10 +224,32 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
             return Err(err.to_string());
         }
     };
+    if vecmsmod.is_empty() {
+        return Err("没有可用的mod".into());
+    }
+
+    if let Err(err) = writetofile(
+        "./data/modslist.json",
+        serde_json::to_string(&vecmsmod).unwrap().as_bytes(),
+    ) {
+        return Err(err.to_string());
+    }
+
+    // Build logs
+    let mut logs = match read_all_logs(Path::new("./data/release_logs.txt")) {
+        Ok(logs) => logs,
+        Err(err) => {
+            return Err(err.to_string());
+        }
+    };
     let releaseinfo = generate_releaseinfo(version, changelog, &vecmsmod, &old_modlist);
     if let Some(size) = releaseinfo.size {
         if size == 0 {
-            return Err("你真的改了什么吗".into());
+            // todo!("没有更新内容");
+        } else {
+            if let Ok(newlogs) = update_and_get_logs(releaseinfo, "./data/release_logs.txt") {
+                logs = newlogs;
+            };
         }
     }
     if let Err(err) = writetofile(
@@ -235,58 +259,45 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
         return Err(err.to_string());
     }
 
-    let logs = match update_and_get_logs(releaseinfo, "./data/release_logs.txt") {
-        Ok(logs) => logs,
-        Err(err) => return Err(err.to_string()),
-    };
-
-    // let mut neccesary_url = None;
-    // if Path::new("./data/data/necessary").exists() {
-    //     neccesary_url = Some(format!("{}necessary.json", serverurl));
-    //     match MSMOD::from_directory(
-    //         "./data/data/necessary",
-    //         Some(format!("{}data/necessary/", serverurl).as_str()),
-    //     ) {
-    //         Ok(vecmsmod) => {
-    //             if let Err(err) = writetofile(
-    //                 "./data/necessary.json",
-    //                 serde_json::to_string(&vecmsmod).unwrap().as_bytes(),
-    //             ) {
-    //                 return Err(err.to_string());
-    //             }
-    //         }
-    //         Err(err) => {
-    //             return Err(err.to_string());
-    //         }
-    //     }
-    // }
-
+    // Build MetaData
     let mut option_url = None;
     let mut serverlist_url = None;
-    // if Path::new("./data/changelog.txt").exists() {
-    //     changelog_url = Some(format!("{}changelog.txt", serverurl));
-    // }
+    let mut launcher_hmcl_url = None;
+    let mut launcher_pclce_url = None;
     if Path::new("./data/data/options.txt").exists() {
         option_url = Some(format!("{}data/options.txt", serverurl));
     }
     if Path::new("./data/data/servers.dat").exists() {
         serverlist_url = Some(format!("{}data/servers.dat", serverurl));
     }
+    if Path::new("./data/data/hmcl.exe").exists() {
+        launcher_hmcl_url = Some(format!("{}data/hmcl.exe", serverurl));
+    }
+    if Path::new("./data/data/pclce.exe").exists() {
+        launcher_pclce_url = Some(format!("{}data/pclce.exe", serverurl));
+    }
     let configpack = match Path::new("./data/data/config.zip").exists() {
         true => Some(MSMOD::from_file(
             Path::new("./data/data/config.zip"),
-            "./data/data/",
-            Some(format!("{}data/mods/", serverurl).as_str()),
+            "./data/data",
+            Some(format!("{}data/", serverurl).as_str()),
         )),
         false => None,
     };
+    let metadata = MetaData::new(
+        option_url,
+        serverlist_url,
+        configpack,
+        launcher_hmcl_url,
+        launcher_pclce_url,
+    );
+
+    // Build Config
     let config = MSConfig::new(
         serverurl.to_string(),
         modlist_url,
         logs,
-        option_url,
-        serverlist_url,
-        configpack,
+        Some(metadata),
         title.to_string(),
     );
     if let Err(err) = writetofile(

@@ -1,4 +1,7 @@
-use crate::{error::Error, msconfig::ReleaseInfo};
+use crate::{
+    error::Error,
+    msconfig::{MetaData, ReleaseInfo},
+};
 use std::sync::Arc;
 
 use crate::{
@@ -107,6 +110,7 @@ impl MSClient {
     pub async fn get_release_info(&self) -> Result<Vec<ReleaseInfo>, Error> {
         Ok(self.inner.as_ref().msconfig.release_info.clone())
     }
+
     pub async fn get_modlist(&self) -> Result<Vec<MSMOD>, Error> {
         match &self.inner.as_ref().msconfig.modlist_url {
             Some(modlist_url) => Ok(serde_json::from_str(
@@ -115,27 +119,32 @@ impl MSClient {
             None => Err(Error::MSConfigNoModListUrl),
         }
     }
-    pub async fn get_configpack(&self) -> Result<Option<MSMOD>, Error> {
-        match &self.inner.as_ref().msconfig.configpack {
-            Some(configpack) => Ok(Some(configpack.clone())),
-            None => Err(Error::MSConfigNoConfigPack),
+
+    pub fn get_metadata(&self) -> Option<MetaData> {
+        self.inner.as_ref().msconfig.metadata.clone()
+    }
+
+    pub fn get_configpack(&self) -> Option<MSMOD> {
+        match self.get_metadata() {
+            Some(metadata) => metadata.configpack,
+            None => None,
         }
     }
-    pub async fn get_option(&self) -> Result<String, Error> {
-        match &self.inner.as_ref().msconfig.option_url {
-            Some(option_url) => Ok(http_get(option_url.as_str()).await?.text),
-            None => Err(Error::MSConfigNoOptionListUrl),
+    pub fn get_option(&self) -> Option<String> {
+        match self.get_metadata() {
+            Some(metadata) => metadata.options_url,
+            None => None,
         }
     }
-    pub async fn get_serverlist(&self) -> Result<String, Error> {
-        match &self.inner.as_ref().msconfig.serverlist_url {
-            Some(serverlist_url) => Ok(http_get(serverlist_url.as_str()).await?.text),
-            None => Err(Error::MSConfigNoServerListUrl),
+    pub fn get_serverlist(&self) -> Option<String> {
+        match self.get_metadata() {
+            Some(metadata) => metadata.serverdat_url,
+            None => None,
         }
     }
 
     pub async fn sync_serverlist(&self) -> Result<(), Error> {
-        match &self.inner.as_ref().msconfig.serverlist_url {
+        match self.get_serverlist() {
             Some(serverlist_url) => Ok(http_download(
                 serverlist_url.as_str(),
                 format!("{}/servers.dat", self.inner.as_ref().path.as_ref().unwrap()).as_str(),
@@ -145,7 +154,7 @@ impl MSClient {
         }
     }
     pub async fn sync_option(&self) -> Result<(), Error> {
-        match &self.inner.as_ref().msconfig.option_url {
+        match self.get_option() {
             Some(option_url) => Ok(http_download(
                 option_url.as_str(),
                 format!("{}/option.txt", self.inner.as_ref().path.as_ref().unwrap()).as_str(),
