@@ -3,6 +3,7 @@ use std::path::Path;
 use tokio::fs::{self, File};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
+use zip::ZipArchive;
 
 use crate::error::Error;
 
@@ -20,8 +21,8 @@ pub enum TaskEventType {
 pub struct TaskEvent {
     pub event_type: TaskEventType,
     pub id: usize,
-    pub downloaded: Option<u64>,
-    pub total: Option<u64>,
+    pub downloaded: Option<usize>,
+    pub total: Option<usize>,
     pub error_message: Option<String>,
 }
 
@@ -36,7 +37,7 @@ impl TaskEvent {
         }
     }
 
-    pub fn progress(id: usize, downloaded: u64, total: u64) -> Self {
+    pub fn progress(id: usize, downloaded: usize, total: usize) -> Self {
         Self {
             event_type: TaskEventType::Progress,
             id,
@@ -135,6 +136,65 @@ impl FileTask {
     }
 }
 
+pub struct UnZipTask {
+    id: usize,
+    file_path: String,
+    dir_path: String,
+    tx: mpsc::Sender<TaskEvent>,
+}
+
+impl UnZipTask {
+    pub fn new(
+        id: usize,
+        file_path: String,
+        dir_path: String,
+        tx: mpsc::Sender<TaskEvent>,
+    ) -> Self {
+        Self {
+            id,
+            file_path,
+            dir_path,
+            tx,
+        }
+    }
+
+    pub async fn execute(self) -> Result<(), Error> {
+        self.tx.send(TaskEvent::started(self.id)).await?;
+
+        let zip_path = self.file_path.clone();
+        let dest_dir = self.dir_path.clone();
+
+        let ziptx = self.tx.clone();
+        tokio::task::spawn_blocking(move || -> Result<(), Error> {
+            let file = std::fs::File::open(&zip_path)?;
+            let mut archive = ZipArchive::new(file)?;
+
+            for i in 0..archive.len() {
+                ziptx.try_send(TaskEvent::progress(self.id, i + 1, archive.len()))?;
+                let mut file = archive.by_index(i)?;
+                let outpath = Path::new(&dest_dir).join(file.name());
+
+                if file.is_dir() {
+                    std::fs::create_dir_all(&outpath)?;
+                } else {
+                    if let Some(p) = outpath.parent() {
+                        if !p.exists() {
+                            std::fs::create_dir_all(p)?;
+                        }
+                    }
+                    let mut outfile = std::fs::File::create(&outpath)?;
+                    std::io::copy(&mut file, &mut outfile)?;
+                }
+            }
+            Ok(())
+        })
+        .await??;
+
+        self.tx.send(TaskEvent::finished(self.id)).await?;
+        Ok(())
+    }
+}
+
 pub struct DownloadTask {
     id: usize,
     url: String,
@@ -176,7 +236,11 @@ impl DownloadTask {
             // 4. 发送进度 (对于100KB的小文件，这会非常快)
             let _ = self
                 .tx
-                .send(TaskEvent::progress(self.id, downloaded, total_size))
+                .send(TaskEvent::progress(
+                    self.id,
+                    downloaded as usize,
+                    total_size as usize,
+                ))
                 .await;
         }
         file.flush().await?;

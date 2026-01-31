@@ -1,4 +1,5 @@
 use thiserror::Error;
+use tokio::task::JoinError;
 
 use crate::mstask::TaskEvent;
 
@@ -12,6 +13,12 @@ pub enum Error {
 
     #[error(transparent)]
     StdIO(#[from] std::io::Error),
+
+    #[error(transparent)]
+    ZIPError(#[from] zip::result::ZipError),
+
+    #[error(transparent)]
+    JoinError(#[from] JoinError),
 
     #[error(transparent)]
     TokioSyncTrySend(#[from] tokio::sync::mpsc::error::TrySendError<TaskEvent>),
@@ -39,7 +46,7 @@ pub enum Error {
 
     #[error("msconfig dont contain hmcl url")]
     MSConfigNoHMCLUrl,
-    
+
     #[error("msconfig dont contain pclce url")]
     MSConfigNoPCLCEUrl,
 

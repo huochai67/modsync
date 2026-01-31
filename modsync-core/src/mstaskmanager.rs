@@ -5,7 +5,7 @@ use tokio::sync::{mpsc, Mutex, Semaphore};
 
 use crate::{
     error::Error,
-    mstask::{DownloadTask, FileTask, TaskEvent, TaskEventType},
+    mstask::{DownloadTask, FileTask, TaskEvent, TaskEventType, UnZipTask},
 };
 
 #[repr(u8)]
@@ -14,6 +14,7 @@ pub enum TaskType {
     Download = 0,
     Rename = 1,
     Delete = 2,
+    UnZip = 3,
     // 未来可扩展其他任务类型
 }
 
@@ -59,14 +60,24 @@ impl TaskRequest {
             new_path: Some(new_path),
         }
     }
+
+    pub fn unzip(name: String, file_path: String, dir_path: String) -> Self {
+        Self {
+            name,
+            file_path,
+            task_type: TaskType::UnZip,
+            url: None,
+            new_path: Some(dir_path),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskStatus {
     pub id: usize,
     pub name: String,
-    pub downloaded_bytes: Option<u64>,
-    pub total_bytes: Option<u64>,
+    pub downloaded_bytes: Option<usize>,
+    pub total_bytes: Option<usize>,
     pub error: Option<String>,
     pub status: TaskEventType,
 }
@@ -148,6 +159,17 @@ impl TaskManager {
                         let new_path = task.new_path.clone().unwrap();
                         let task =
                             FileTask::rename(i, task.file_path.clone(), new_path, tx_clone.clone());
+                        if let Err(e) = task.execute().await {
+                            let _ = tx_clone.send(TaskEvent::error(i, e.to_string())).await;
+                        }
+                    }
+                    TaskType::UnZip => {
+                        let task = UnZipTask::new(
+                            i,
+                            task.file_path.clone(),
+                            task.new_path.clone().unwrap(),
+                            tx_clone.clone(),
+                        );
                         if let Err(e) = task.execute().await {
                             let _ = tx_clone.send(TaskEvent::error(i, e.to_string())).await;
                         }

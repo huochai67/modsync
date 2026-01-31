@@ -19,6 +19,10 @@ fn getdotminecraft() -> String {
     return pwd;
 }
 
+fn get_configpack_path() -> String {
+    format!("{}/configpack.zip", getdotminecraft())
+}
+
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error(transparent)]
@@ -26,6 +30,9 @@ enum Error {
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    ZIPError(#[from] zip::result::ZipError),
 
     #[error("Already running")]
     AlreadyRunning,
@@ -57,6 +64,7 @@ struct RuntimeInfo {
     has_options: bool,
     has_hcml: bool,
     has_pclce: bool,
+    has_configpack: bool,
     release_info: Vec<ReleaseInfo>,
 }
 struct AppRuntimeInner {
@@ -114,8 +122,30 @@ async fn apply_diff(
     state: State<'_, AppRuntime>,
     diffs: Vec<MODDiff>,
     backup: bool,
+    sync_config_pack: bool,
 ) -> Result<(), Error> {
     let mut tasks: Vec<TaskRequest> = vec![];
+
+    if sync_config_pack {
+        let configpack_opt = {
+            let mut state = state.lock().await;
+            let client = state.try_get_client().await?;
+            client.get_configpack()
+        };
+        let configpack = match configpack_opt {
+            Some(url) => url,
+            None => {
+                return Err(Error::MSCore(
+                    modsync_core::error::Error::MSConfigNoConfigPack,
+                ))
+            }
+        };
+        tasks.push(TaskRequest::download(
+            "Download ConfigPack".to_string(),
+            configpack.url.unwrap(),
+            get_configpack_path(),
+        ));
+    }
 
     // Check backup dirctory
     if backup {
@@ -156,7 +186,18 @@ async fn apply_diff(
         }
     }
 
-    summit_task(state, tasks).await?;
+    summit_task(state.clone(), tasks).await?;
+
+    // unzip configpack
+    if sync_config_pack {
+        let unziptask = TaskRequest::unzip(
+            "Process ConfigPack".to_string(),
+            get_configpack_path(),
+            getdotminecraft(),
+        );
+
+        summit_task(state.clone(), vec![unziptask]).await?;
+    }
 
     Ok(())
 }
@@ -243,6 +284,7 @@ async fn init_runtime(state: State<'_, AppRuntime>) -> Result<(), Error> {
         has_options: client.get_options().is_some(),
         has_hcml: client.get_launcher_hmcl().is_some(),
         has_pclce: client.get_launcher_pclce().is_some(),
+        has_configpack: client.get_configpack().is_some(),
     });
 
     Ok(())

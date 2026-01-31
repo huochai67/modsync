@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect } from 'react';
 import { MOCK_MOD_DIFFS } from '@/mockData';
 import { MODDiff } from '@/types';
-import { Button, ListBox, Separator } from '@heroui/react';
+import { Button, Checkbox, Label, ListBox, Separator } from '@heroui/react';
 import { invoke } from '@tauri-apps/api/core';
 import ModDiffListItem from '@/components/ModDiffListItem';
 
@@ -18,7 +18,6 @@ const DiffViewer: React.FC = () => {
       if (!initialized) {
         await invoke<void>('init_runtime');
       }
-
       const moddiffs = await invoke<MODDiff[]>('get_diff');
       setDiff(moddiffs)
     } catch (error) {
@@ -31,10 +30,10 @@ const DiffViewer: React.FC = () => {
     fetchModDiff();
   }, []);
 
+  const [syncConfigPack, setSyncConfigPack] = React.useState<boolean>(true);
   const [selectKeys, setSelectKeys] = React.useState<string | Set<string>>("all");
   const onBtnSyncClicked = async () => {
     if (!initialized) return;
-    if (diff.length === 0) return;
 
     console.log("Syncing selected items:", selectKeys);
     let selected_diffs: MODDiff[] = [];
@@ -46,7 +45,11 @@ const DiffViewer: React.FC = () => {
       selected_diffs = diff.filter((d) => d.name === selectKeys);
     }
     console.log("同步以下差异项：", selected_diffs);
-    invoke<void>('apply_diff', { diffs: selected_diffs, backup: true }).then(() => { alert("完成！") });
+    invoke<void>('apply_diff', { diffs: selected_diffs, backup: true, syncConfigPack: syncConfigPack }).then(() => {
+      alert("完成！")
+      window.location.href = 'http://localhost:1420/#/';
+    });
+
     window.location.href = 'http://localhost:1420/#/taskmanager';
   }
 
@@ -59,13 +62,22 @@ const DiffViewer: React.FC = () => {
         </div>
         <div className="flex flex-col items-center space-y-1">
           <div className='w-full flex justify-end'>
-            <Button onClick={onBtnSyncClicked} isDisabled={!initialized}>开始同步</Button></div>
-          <span className="text-sm text-muted">{diff.length}条差异</span>
+            <Button onClick={onBtnSyncClicked} isDisabled={((!initialized) || diff.length === 0) && !syncConfigPack}>开始同步</Button>
+          </div>
+          <div className="flex items-center gap-3">
+            <Checkbox id="sync-config-pack" isSelected={syncConfigPack} onChange={(e) => { setSyncConfigPack(e) }}>
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+            </Checkbox>
+            <Label htmlFor="sync-config-pack">同步配置包</Label>
+          </div>
+          {/* <span className="text-sm text-muted">{diff.length}条差异</span> */}
         </div>
       </div>
       <Separator />
 
-      {initialized ? diff.length > 0 ?
+      {initialized ? diff.length !== 0 ?
         <div className="bg-background-tertiary border rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <ListBox selectionMode="multiple" aria-label='l' defaultSelectedKeys={"all"} onSelectionChange={(keys) => { setSelectKeys(keys as string | Set<string>) }}>

@@ -27,6 +27,7 @@ modsync-core = { path = "../../modsync-core" }
 tokio = { version = "1", features = ["full"] }
 build-info = "0.0.36"
 thiserror = "1.0.63"
+zip = "0.6"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-window-state = "2"
