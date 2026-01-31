@@ -11,6 +11,7 @@ const App: React.FC = () => {
     // State
     const [form, setForm] = useState<FormState>({
         version: '',
+        title: '',
         changelog: '',
         serverUrl: '',
         adds: [],
@@ -32,7 +33,7 @@ const App: React.FC = () => {
             const config = await invoke<MSConfig>('get_config');
             setConfig(config)
             const lastrelease = config.release_info[config.release_info.length - 1];
-            setForm({ ...form, serverUrl: config.base_url, changelog: lastrelease.changelog, version: lastrelease.version });
+            setForm({ ...form, title: config.title, serverUrl: config.base_url, changelog: lastrelease.changelog, version: lastrelease.version });
             console.log("Config fetched successfully.", config);
         } catch (error) {
             alert("Failed to load history : " + error);
@@ -49,6 +50,7 @@ const App: React.FC = () => {
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const handleSubmit = async (e: React.FormEvent) => {
+        console.log(e)
         e.preventDefault();
         if (!form.version || !form.changelog) {
             alert("Please fill in version and changelog");
@@ -57,7 +59,7 @@ const App: React.FC = () => {
 
         setIsSubmitting(true);
         try {
-            await invoke('generate', { version: form.version, changelog: form.changelog, title: form.version, serverurl: form.serverUrl });
+            await invoke('generate', { version: form.version, changelog: form.changelog, title: form.title, serverurl: form.serverUrl });
             alert("Update published successfully!");
             window.location.reload();
         } catch (err) {
@@ -71,12 +73,12 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-background flex flex-col md:flex-row">
             {/* Sidebar / Form Area */}
             <div className="w-1/3 bg-background-secondary border p-6 flex flex-col max-h-screen sticky top-0 overflow-y-auto">
-                <div className="mb-8 overflow-hidden text-xs">
+                <div className="mb-8 overflow-hidden text-xs h-full">
                     <h1 className="text-2xl font-bold flex items-center">
                         <svg className="w-8 h-8 mr-2 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                         </svg>
-                        ModSync Configurator <span className="text-accent font-bold ml-1">Next</span>
+                        MS Configurator <span className="text-accent font-bold ml-1">Next</span>
                     </h1>
                     <p className="text-muted text-sm mt-1">Version update information generator</p>
                 </div>
@@ -93,6 +95,18 @@ const App: React.FC = () => {
                         <Input placeholder='https://...' />
                         <FieldError />
                     </TextField>
+                    <TextField
+                        isRequired
+                        name="title"
+                        type="text"
+                        defaultValue='MS-UPDATER'
+                        value={form.title}
+                        onChange={(e) => setForm({ ...form, title: e })}
+                    >
+                        <Label>Title</Label>
+                        <Input placeholder='MS-UPDATER' />
+                        <FieldError />
+                    </TextField>
 
                     <div className="grid grid-cols-2 gap-4">
                         <TextField
@@ -107,7 +121,7 @@ const App: React.FC = () => {
                             <FieldError />
                         </TextField>
                         <TextField
-                            isRequired
+                            isDisabled
                             name="date"
                             type="text"
                             value={new Date().toLocaleDateString()}
@@ -119,7 +133,7 @@ const App: React.FC = () => {
                         </TextField>
                     </div>
 
-                    <div className='flex flex-col h-full'>
+                    <div className='flex flex-col h-fit'>
                         <Label>Update Description (Changelog)</Label>
                         <TextArea
                             rows={3}
@@ -129,7 +143,9 @@ const App: React.FC = () => {
                         />
                     </div>
 
-                    <Button isPending={isSubmitting} className="w-full h-32" type='submit' >{isSubmitting ? (
+                    <div className='h-full'/>
+
+                    <Button isPending={isSubmitting} className="min-h-12 w-full self-center" type='submit' >{isSubmitting ? (
                         <span className="flex items-center justify-center">
                             <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-foreground" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
