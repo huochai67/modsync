@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Button, Chip, FieldError, Form, Input, Label, Separator, TextArea, TextField } from '@heroui/react';
 import { CircleCheck } from 'lucide-react';
 
-import { ReleaseInfo, FormState, MSConfig } from '@/types';
+import { FormState, MSConfig } from '@/types';
 import HistoryItem from '@/components/HistoryItem';
 
 const App: React.FC = () => {
@@ -24,7 +24,7 @@ const App: React.FC = () => {
         title: ''
     });
     const history = config.release_info;
-    const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+    const [_isLoadingHistory, setIsLoadingHistory] = useState(true);
     // Load Config
     const fetchConfig = useCallback(async () => {
         setIsLoadingHistory(true);
