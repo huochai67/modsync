@@ -5,11 +5,14 @@ import { LayoutDashboard, FileDiff, Settings2, List, Layers } from 'lucide-react
 
 import { invoke } from '@tauri-apps/api/core';
 import { Window } from '@tauri-apps/api/window'
+import { openUrl } from '@tauri-apps/plugin-opener';
+import { Button, Separator } from '@heroui/react';
+
 import { RuntimeInfo } from '@/types';
 import { RuntimeContext } from '@/runtimecontext';
-import { Button, Separator } from '@heroui/react';
-import { SiQq } from '@icons-pack/react-simple-icons';
 import { MOCK_RUNTIME_INFO } from '@/mockData';
+
+import { SiQq } from '@icons-pack/react-simple-icons';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -84,12 +87,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         <Separator />
         <div className="p-4">
-          {/* <Button variant='outline' className="w-full justify-center h-full mb-6"><Mail />加入QQ群</Button> */}
-          {/* <button aria-disabled disabled className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors">
-            <SiQq size={18} />
-            <span className="font-medium" >加入QQ群</span>
-          </button> */}
-          <Button className="w-full h-10" variant='outline'><SiQq size={18} />加入QQ群</Button>
+          <Button className="w-full h-10" variant='outline' onClick={() => { openUrl('https://qm.qq.com/q/dIp82HmC6Q') }}><SiQq size={18} />加入QQ群</Button>
         </div>
       </aside>
 
