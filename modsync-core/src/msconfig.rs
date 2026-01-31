@@ -76,10 +76,6 @@ impl MSConfig {
         Ok(MSConfig::from_str(str.as_str())?)
     }
 
-    pub fn get_title(&self) -> String {
-        self.title.to_string()
-    }
-
     pub async fn get_remote_config(url: &str) -> Result<MSConfig, Error> {
         Ok(serde_json::from_str::<MSConfig>(
             http_get(url).await?.text.as_str(),

@@ -103,12 +103,16 @@ impl MSClient {
         self.inner.as_ref().path.clone()
     }
 
-    pub fn get_remoteconfig(&self) -> MSConfig {
+    pub fn get_config(&self) -> MSConfig {
         self.inner.as_ref().msconfig.clone()
     }
 
-    pub async fn get_release_info(&self) -> Result<Vec<ReleaseInfo>, Error> {
-        Ok(self.inner.as_ref().msconfig.release_info.clone())
+    pub fn get_title(&self) -> String {
+        self.get_config().title
+    }
+
+    pub fn get_release_info(&self) -> Vec<ReleaseInfo> {
+        self.get_config().release_info
     }
 
     pub async fn get_modlist(&self) -> Result<Vec<MSMOD>, Error> {
@@ -121,7 +125,7 @@ impl MSClient {
     }
 
     pub fn get_metadata(&self) -> Option<MetaData> {
-        self.inner.as_ref().msconfig.metadata.clone()
+        self.get_config().metadata
     }
 
     pub fn get_configpack(&self) -> Option<MSMOD> {
@@ -130,42 +134,74 @@ impl MSClient {
             None => None,
         }
     }
-    pub fn get_option(&self) -> Option<String> {
+    pub fn get_options(&self) -> Option<String> {
         match self.get_metadata() {
             Some(metadata) => metadata.options_url,
             None => None,
         }
     }
-    pub fn get_serverlist(&self) -> Option<String> {
+    pub fn get_serverdat(&self) -> Option<String> {
         match self.get_metadata() {
             Some(metadata) => metadata.serverdat_url,
             None => None,
         }
     }
-
-    pub async fn sync_serverlist(&self) -> Result<(), Error> {
-        match self.get_serverlist() {
-            Some(serverlist_url) => Ok(http_download(
-                serverlist_url.as_str(),
-                format!("{}/servers.dat", self.inner.as_ref().path.as_ref().unwrap()).as_str(),
-            )
-            .await?),
-            None => Err(Error::MSConfigNoServerListUrl),
+    pub fn get_launcher_hmcl(&self) -> Option<String> {
+        match self.get_metadata() {
+            Some(metadata) => metadata.launcher_hmcl_url,
+            None => None,
         }
     }
-    pub async fn sync_option(&self) -> Result<(), Error> {
-        match self.get_option() {
-            Some(option_url) => Ok(http_download(
-                option_url.as_str(),
-                format!("{}/option.txt", self.inner.as_ref().path.as_ref().unwrap()).as_str(),
+    pub fn get_launcher_pclce(&self) -> Option<String> {
+        match self.get_metadata() {
+            Some(metadata) => metadata.launcher_pclce_url,
+            None => None,
+        }
+    }
+
+    pub async fn sync_serverdat(&self) -> Result<(), Error> {
+        match self.get_serverdat() {
+            Some(serverdat_url) => Ok(http_download(
+                serverdat_url.as_str(),
+                format!("{}/servers.dat", self.get_path().unwrap()).as_str(),
             )
             .await?),
-            None => Err(Error::MSConfigNoOptionListUrl),
+            None => Err(Error::MSConfigNoServerDatUrl),
+        }
+    }
+    pub async fn sync_options(&self) -> Result<(), Error> {
+        match self.get_options() {
+            Some(option_url) => Ok(http_download(
+                option_url.as_str(),
+                format!("{}/option.txt", self.get_path().unwrap()).as_str(),
+            )
+            .await?),
+            None => Err(Error::MSConfigNoOptionsUrl),
+        }
+    }
+    pub async fn sync_hcml(&self) -> Result<(), Error> {
+        match self.get_launcher_hmcl() {
+            Some(hmcl_url) => Ok(http_download(
+                hmcl_url.as_str(),
+                format!("{}/hmcl.exe", self.get_path().unwrap()).as_str(),
+            )
+            .await?),
+            None => Err(Error::MSConfigNoHMCLUrl),
+        }
+    }
+    pub async fn sync_pclce(&self) -> Result<(), Error> {
+        match self.get_launcher_pclce() {
+            Some(pclce_url) => Ok(http_download(
+                pclce_url.as_str(),
+                format!("{}/PCL-CE.exe", self.get_path().unwrap()).as_str(),
+            )
+            .await?),
+            None => Err(Error::MSConfigNoPCLCEUrl),
         }
     }
 
     pub fn get_modlist_local(&self) -> Result<Vec<MSMOD>, Error> {
-        let modspath = format!("{}/mods", self.inner.as_ref().path.as_ref().unwrap());
+        let modspath = format!("{}/mods", self.get_path().unwrap().as_str());
         let _ = std::fs::create_dir_all(modspath.as_str());
         MSMOD::from_directory(modspath.as_str(), None)
     }

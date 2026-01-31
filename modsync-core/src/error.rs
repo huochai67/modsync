@@ -31,11 +31,17 @@ pub enum Error {
     #[error("msconfig dont contain changelog url")]
     MSConfigNoChangeLogUrl,
 
-    #[error("msconfig dont contain serverlist url")]
-    MSConfigNoServerListUrl,
+    #[error("msconfig dont contain serverdat url")]
+    MSConfigNoServerDatUrl,
 
-    #[error("msconfig dont contain optionlist url")]
-    MSConfigNoOptionListUrl,
+    #[error("msconfig dont contain options url")]
+    MSConfigNoOptionsUrl,
+
+    #[error("msconfig dont contain hmcl url")]
+    MSConfigNoHMCLUrl,
+    
+    #[error("msconfig dont contain pclce url")]
+    MSConfigNoPCLCEUrl,
 
     #[error("msconfig dont contain modlist url")]
     MSConfigNoModListUrl,
