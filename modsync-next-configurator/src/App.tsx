@@ -70,10 +70,10 @@ const App: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background flex flex-col md:flex-row">
+        <div className="h-screen w-full bg-background flex flex-row">
             {/* Sidebar / Form Area */}
-            <div className="w-1/3 bg-background-secondary border p-6 flex flex-col max-h-screen sticky top-0 overflow-y-auto">
-                <div className="mb-8 overflow-hidden text-xs h-full">
+            <div className="w-1/3 bg-background-secondary border p-6 flex flex-col h-full space-y-4 overflow-y-auto">
+                <div className=" text-xs">
                     <h1 className="text-2xl font-bold flex items-center">
                         <svg className="w-8 h-8 mr-2 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -143,7 +143,7 @@ const App: React.FC = () => {
                         />
                     </div>
 
-                    <div className='h-full'/>
+                    <div className='h-full' />
 
                     <Button isPending={isSubmitting} className="min-h-12 w-full self-center" type='submit' >{isSubmitting ? (
                         <span className="flex items-center justify-center">
