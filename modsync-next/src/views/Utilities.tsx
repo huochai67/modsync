@@ -11,8 +11,8 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 const Utilities: React.FC = () => {
     const runtime = React.useContext(RuntimeContext);
 
-    const commoncallback = async (func: string) => {
-        await invoke<void>(func);
+    const download_utility = async (utility: string) => {
+        await invoke<void>('download_utility', { utility: utility });
         alert("下载完成！");
     }
 
@@ -25,10 +25,10 @@ const Utilities: React.FC = () => {
                 </Card.Header>
                 <Separator />
                 <Card.Content className='flex flex-row flex-wrap gap-3'>
-                    <SyncButton isDisabled={!runtime.has_options} onClicked={() => commoncallback("download_options")} >按键设置</SyncButton>
-                    <SyncButton isDisabled={!runtime.has_serverdat} onClicked={() => commoncallback("download_serverlist")} >服务器列表</SyncButton>
-                    <SyncButton isDisabled={!runtime.has_hcml} onClicked={() => commoncallback("download_hmcl")} >HMCL</SyncButton>
-                    <SyncButton isDisabled={!runtime.has_pclce} onClicked={() => commoncallback("download_pcl")} >PCL</SyncButton>
+                    <SyncButton isDisabled={!runtime.has_options} onClicked={() => download_utility("options")} >按键设置</SyncButton>
+                    <SyncButton isDisabled={!runtime.has_serverdat} onClicked={() => download_utility("serverdat")} >服务器列表</SyncButton>
+                    <SyncButton isDisabled={!runtime.has_hcml} onClicked={() => download_utility("hmcl")} >HMCL</SyncButton>
+                    <SyncButton isDisabled={!runtime.has_pclce} onClicked={() => download_utility("pclce")} >PCL</SyncButton>
                 </Card.Content>
             </Card>
             <Card className='w-full'>

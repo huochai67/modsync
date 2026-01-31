@@ -1,5 +1,5 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use modsync_core::{
     msclient::{DiffType, MODDiff, MSClient, MSClientBuilder},
@@ -23,6 +23,9 @@ fn getdotminecraft() -> String {
 enum Error {
     #[error(transparent)]
     MSCore(#[from] modsync_core::error::Error),
+
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
 
     #[error("Already running")]
     AlreadyRunning,
@@ -107,8 +110,22 @@ async fn get_diff(state: State<'_, AppRuntime>) -> Result<Vec<MODDiff>, Error> {
 }
 
 #[tauri::command]
-async fn apply_diff(state: State<'_, AppRuntime>, diffs: Vec<MODDiff>) -> Result<(), Error> {
+async fn apply_diff(
+    state: State<'_, AppRuntime>,
+    diffs: Vec<MODDiff>,
+    backup: bool,
+) -> Result<(), Error> {
     let mut tasks: Vec<TaskRequest> = vec![];
+
+    // Check backup dirctory
+    if backup {
+        let strpath = format!("{}/bakmods", getdotminecraft());
+        let backupdir = Path::new(&strpath);
+        if !backupdir.exists() {
+            tokio::fs::create_dir_all(backupdir).await?;
+        }
+    }
+
     for diff in diffs.iter() {
         match diff.difftype {
             DiffType::NEWED | DiffType::MODIFIED => {
@@ -122,10 +139,18 @@ async fn apply_diff(state: State<'_, AppRuntime>, diffs: Vec<MODDiff>) -> Result
             }
             DiffType::DELETED => {
                 if let Some(local) = &diff.local {
-                    tasks.push(TaskRequest::delete(
-                        format!("删除{}", local.path),
-                        format!("{}/mods/{}", getdotminecraft(), local.path),
-                    ));
+                    if backup {
+                        tasks.push(TaskRequest::rename(
+                            format!("删除{}", local.path),
+                            format!("{}/mods/{}", getdotminecraft(), local.path),
+                            format!("{}/bakmods/{}", getdotminecraft(), local.path),
+                        ));
+                    } else {
+                        tasks.push(TaskRequest::delete(
+                            format!("删除{}", local.path),
+                            format!("{}/mods/{}", getdotminecraft(), local.path),
+                        ));
+                    }
                 }
             }
         }

@@ -46,7 +46,7 @@ const DiffViewer: React.FC = () => {
       selected_diffs = diff.filter((d) => d.name === selectKeys);
     }
     console.log("同步以下差异项：", selected_diffs);
-    invoke<void>('apply_diff', { diffs: selected_diffs }).then(() => { alert("完成！") });
+    invoke<void>('apply_diff', { diffs: selected_diffs, backup: true }).then(() => { alert("完成！") });
     window.location.href = 'http://localhost:1420/#/taskmanager';
   }
 

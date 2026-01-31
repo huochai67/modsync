@@ -49,6 +49,16 @@ impl TaskRequest {
             new_path: None,
         }
     }
+
+    pub fn rename(name: String, file_path: String, new_path: String) -> Self {
+        Self {
+            name,
+            file_path,
+            task_type: TaskType::Rename,
+            url: None,
+            new_path: Some(new_path),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
