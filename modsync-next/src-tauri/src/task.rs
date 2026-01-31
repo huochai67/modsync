@@ -1,7 +1,8 @@
-use anyhow::Result;
 use futures_util::StreamExt;
+use modsync_core::error::Error;
 use serde::{Deserialize, Serialize};
-use tokio::fs::File;
+use std::path::Path;
+use tokio::fs::{self, File};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
 
@@ -64,6 +65,78 @@ impl TaskEvent {
     }
 }
 
+pub struct FileTask {
+    id: usize,
+    file_path: String,
+    new_path: Option<String>,
+    tx: mpsc::Sender<TaskEvent>,
+}
+
+impl FileTask {
+    pub fn new(
+        id: usize,
+        file_path: String,
+        new_path: Option<String>,
+        tx: mpsc::Sender<TaskEvent>,
+    ) -> Self {
+        Self {
+            id,
+            file_path,
+            new_path,
+            tx,
+        }
+    }
+
+    pub fn delete(id: usize, file_path: String, tx: mpsc::Sender<TaskEvent>) -> Self {
+        Self {
+            id,
+            file_path,
+            new_path: None,
+            tx,
+        }
+    }
+
+    pub fn rename(
+        id: usize,
+        file_path: String,
+        new_path: String,
+        tx: mpsc::Sender<TaskEvent>,
+    ) -> Self {
+        Self {
+            id,
+            file_path,
+            new_path: Some(new_path),
+            tx,
+        }
+    }
+
+    pub async fn execute(self) -> Result<(), Error> {
+        if let Err(err) = self.tx.send(TaskEvent::started(self.id)).await {
+            return Err(Error::TokioMpscError);
+        }
+
+        let file_path = Path::new(&self.file_path);
+        if !file_path.exists() {
+            return Err(Error::from(tokio::io::Error::new(
+                tokio::io::ErrorKind::AddrNotAvailable,
+                "File path does not exist",
+            )));
+        }
+
+        match self.new_path {
+            Some(new_path) => fs::rename(file_path, new_path).await?,
+            None => {
+                fs::remove_file(file_path).await?;
+            }
+        }
+
+        if let Err(err) = self.tx.send(TaskEvent::finished(self.id)).await {
+            return Err(Error::TokioMpscError);
+        }
+        Ok(())
+    }
+}
+
 pub struct DownloadTask {
     id: usize,
     url: String,
@@ -87,11 +160,13 @@ impl DownloadTask {
             tx,
         }
     }
-    pub async fn execute(self) -> Result<()> {
+    pub async fn execute(self) -> Result<(), Error> {
         // 1. 发起请求
         let response = self.client.get(&self.url).send().await?;
         let total_size = response.content_length().unwrap_or(0);
-        self.tx.send(TaskEvent::started(self.id)).await?;
+        if let Err(err) = self.tx.send(TaskEvent::started(self.id)).await {
+            return Err(Error::TokioMpscError);
+        }
         // 2. 创建文件
         let mut file = File::create(&self.file_path).await?;
         let mut downloaded: u64 = 0;
@@ -109,7 +184,9 @@ impl DownloadTask {
                 .await;
         }
         file.flush().await?;
-        self.tx.send(TaskEvent::finished(self.id)).await?;
+        if let Err(err) = self.tx.send(TaskEvent::finished(self.id)).await {
+            return Err(Error::TokioMpscError);
+        }
         Ok(())
     }
 }

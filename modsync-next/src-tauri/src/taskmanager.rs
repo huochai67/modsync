@@ -4,7 +4,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, Mutex, Semaphore};
 
-use crate::task::{DownloadTask, TaskEvent, TaskEventType};
+use crate::task::{DownloadTask, FileTask, TaskEvent, TaskEventType};
 
 #[repr(u8)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,7 +28,7 @@ pub struct TaskRequest {
     pub new_path: Option<String>,
 }
 impl TaskRequest {
-    pub fn download(name : String, url: String, file_path: String) -> Self {
+    pub fn download(name: String, url: String, file_path: String) -> Self {
         Self {
             name,
             file_path,
@@ -113,22 +113,34 @@ impl TaskManager {
                 // 获取信号量许可，控制并发
                 let _permit = semaphore.acquire().await.unwrap();
 
-                let task = match task.task_type {
+                match task.task_type {
                     TaskType::Download => {
                         let url = task.url.clone().unwrap();
                         let path = task.file_path.clone();
-                        DownloadTask::new(i, url, path, client, tx_clone.clone())
+                        let task = DownloadTask::new(i, url, path, client, tx_clone.clone());
+                        if let Err(e) = task.execute().await {
+                            let _ = tx_clone.send(TaskEvent::error(i, e.to_string())).await;
+                        }
+                    }
+                    TaskType::Delete => {
+                        let task = FileTask::delete(i, task.file_path.clone(), tx_clone.clone());
+                        if let Err(e) = task.execute().await {
+                            let _ = tx_clone.send(TaskEvent::error(i, e.to_string())).await;
+                        }
+                    }
+                    TaskType::Rename => {
+                        let new_path = task.new_path.clone().unwrap();
+                        let task =
+                            FileTask::rename(i, task.file_path.clone(), new_path, tx_clone.clone());
+                        if let Err(e) = task.execute().await {
+                            let _ = tx_clone.send(TaskEvent::error(i, e.to_string())).await;
+                        }
                     }
                     _ => {
                         // 其他任务类型的处理逻辑
                         unimplemented!()
                     }
                 };
-
-                // let task = DownloadTask::new(i, url, path, tx_clone.clone());
-                if let Err(e) = task.execute().await {
-                    let _ = tx_clone.send(TaskEvent::error(i, e.to_string())).await;
-                }
             });
         }
 

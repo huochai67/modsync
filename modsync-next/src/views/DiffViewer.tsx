@@ -46,7 +46,8 @@ const DiffViewer: React.FC = () => {
       selected_diffs = diff.filter((d) => d.name === selectKeys);
     }
     console.log("同步以下差异项：", selected_diffs);
-    await invoke<void>('apply_diff', { diffs: selected_diffs });
+    invoke<void>('apply_diff', { diffs: selected_diffs }).then(() => { alert("完成！") });
+    window.location.href = 'http://localhost:1420/#/taskmanager';
   }
 
   return (
@@ -58,7 +59,7 @@ const DiffViewer: React.FC = () => {
         </div>
         <div className="flex flex-col items-center space-y-1">
           <div className='w-full flex justify-end'>
-            <Button onClick={onBtnSyncClicked} isDisabled={initialized}>开始同步</Button></div>
+            <Button onClick={onBtnSyncClicked} isDisabled={!initialized}>开始同步</Button></div>
           <span className="text-sm text-muted">{diff.length}条差异</span>
         </div>
       </div>

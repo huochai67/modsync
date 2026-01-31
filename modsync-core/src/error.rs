@@ -16,6 +16,12 @@ pub enum Error {
     #[error(transparent)]
     TokioSyncTrySend(#[from] tokio::sync::mpsc::error::TrySendError<MSTaskStatus>),
 
+    #[error(transparent)]
+    TokioSyncSend(#[from] tokio::sync::mpsc::error::SendError<MSTaskStatus>),
+
+    #[error("tokio mpsc action failed.")]
+    TokioMpscError,
+
     #[error("MSClientBuilder doesnt have msconfig")]
     BuilderNoMSConfig,
 

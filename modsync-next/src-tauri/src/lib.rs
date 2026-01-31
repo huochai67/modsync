@@ -2,7 +2,7 @@
 mod task;
 mod taskmanager;
 
-use std::{f32::consts::E, sync::Arc};
+use std::sync::Arc;
 
 use modsync_core::{
     msclient::{DiffType, MODDiff, MSClient, MSClientBuilder},
@@ -120,10 +120,7 @@ async fn apply_diff(state: State<'_, AppRuntime>, diffs: Vec<MODDiff>) -> Result
             DiffType::NEWED | DiffType::MODIFIED => {
                 if let Some(remote) = &diff.remote {
                     tasks.push(TaskRequest::download(
-                        format!(
-                            "下载{}",
-                            remote.path.clone()
-                        ),
+                        format!("下载{}", remote.path.clone()),
                         remote.url.clone().unwrap(),
                         format!("{}/mods/{}", getdotminecraft(), remote.path),
                     ));
@@ -131,10 +128,10 @@ async fn apply_diff(state: State<'_, AppRuntime>, diffs: Vec<MODDiff>) -> Result
             }
             DiffType::DELETED => {
                 if let Some(local) = &diff.local {
-                    tasks.push(TaskRequest::delete(format!(
-                        "删除{}",
-                        local.path
-                    ), format!("{}/mods/{}", getdotminecraft(), local.path)));
+                    tasks.push(TaskRequest::delete(
+                        format!("删除{}", local.path),
+                        format!("{}/mods/{}", getdotminecraft(), local.path),
+                    ));
                 }
             }
         }
@@ -158,6 +155,7 @@ async fn summit_task(state: State<'_, AppRuntime>, tasks: Vec<TaskRequest>) -> R
         return Err(Error::AlreadyRunning);
     }
 
+    println!("init taskmanager now");
     // init TaskManager and run tasks
     let mut taskmanager = TaskManager::new(20);
     let running_task = taskmanager.get_vec_task_status().await;
@@ -168,15 +166,12 @@ async fn summit_task(state: State<'_, AppRuntime>, tasks: Vec<TaskRequest>) -> R
     }
 
     // Post: set is_running to false after tasks complete
-    match taskmanager.run(tasks).await {
-        Ok(_) => {}
-        Err(e) => {
-            let state = state.lock().await;
-            *state.is_running.lock().await = false;
-            panic!("{}", e.to_string());
-            return Err(Error::Err);
-        }
+    if let Err(_e) = taskmanager.run(tasks).await {
+        return Err(Error::Err);
     }
+
+    let state = state.lock().await;
+    *state.is_running.lock().await = false;
     Ok(())
 }
 
