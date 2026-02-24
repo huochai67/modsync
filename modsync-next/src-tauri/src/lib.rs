@@ -1,9 +1,11 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use std::{path::Path, sync::Arc};
 
+use log::{debug, error, info, warn};
 use modsync_core::{
     msclient::{DiffType, MODDiff, MSClient, MSClientBuilder},
     msconfig::{MSConfig, ReleaseInfo},
+    msmod::MSMOD,
     mstaskmanager::{TaskManager, TaskRequest, TaskStatus},
 };
 use serde::Serialize;
@@ -12,7 +14,7 @@ use tokio::sync::Mutex;
 
 fn getdotminecraft() -> String {
     let pwd = format!(
-        "{}/../.minecraft",
+        "{}/.minecraft",
         std::env::current_dir().unwrap().to_str().unwrap()
     );
     let _ = std::fs::create_dir_all(pwd.clone());
@@ -78,15 +80,16 @@ impl AppRuntimeInner {
     async fn try_get_client(&mut self) -> Result<MSClient, Error> {
         match &self.client {
             None => {
+                info!("Client not initialized, creating new client");
                 let client = MSClientBuilder::new()
                     .msconfig(
-                        MSConfig::get_remote_config("http://127.0.0.1:8086/info.json").await?,
-                        // .msconfig(
-                        //     MSConfig::get_remote_config("https://cn.ms.nicefish4520.com/info.json")
-                        //         .await?,
+                        // MSConfig::get_remote_config("http://127.0.0.1:8086/info.json").await?,
+                        MSConfig::get_remote_config("https://cn.ms.nicefish4520.com/info.json")
+                            .await?,
                     )
                     .path(getdotminecraft())
                     .build()?;
+                info!("Client created successfully");
                 self.client = Some(client.clone());
                 Ok(client)
             }
@@ -98,6 +101,7 @@ type AppRuntime = Mutex<AppRuntimeInner>;
 
 #[tauri::command]
 async fn download_utility(state: State<'_, AppRuntime>, utility: &str) -> Result<(), Error> {
+    info!("Downloading utility: {}", utility);
     let mut state = state.lock().await;
     let client = state.try_get_client().await?;
     match utility {
@@ -105,16 +109,23 @@ async fn download_utility(state: State<'_, AppRuntime>, utility: &str) -> Result
         "pclce" => client.sync_pclce().await?,
         "options" => client.sync_options().await?,
         "serverdat" => client.sync_serverdat().await?,
-        _ => return Err(Error::Err),
+        _ => {
+            error!("Unknown utility: {}", utility);
+            return Err(Error::Err);
+        }
     }
+    info!("Utility {} downloaded successfully", utility);
     Ok(())
 }
 
 #[tauri::command]
 async fn get_diff(state: State<'_, AppRuntime>) -> Result<Vec<MODDiff>, Error> {
+    debug!("Getting diff list...");
     let mut state = state.lock().await;
     let client = state.try_get_client().await?;
-    Ok(client.get_difflist().await?)
+    let diffs = client.get_difflist().await?;
+    debug!("Found {} diffs", diffs.len());
+    Ok(diffs)
 }
 
 #[tauri::command]
@@ -124,6 +135,7 @@ async fn apply_diff(
     backup: bool,
     sync_config_pack: bool,
 ) -> Result<(), Error> {
+    info!("Applying {} diffs (backup: {}, sync_config_pack: {})", diffs.len(), backup, sync_config_pack);
     let mut tasks: Vec<TaskRequest> = vec![];
 
     if sync_config_pack {
@@ -135,16 +147,30 @@ async fn apply_diff(
         let configpack = match configpack_opt {
             Some(url) => url,
             None => {
+                error!("No config pack found in MSConfig");
                 return Err(Error::MSCore(
                     modsync_core::error::Error::MSConfigNoConfigPack,
                 ))
             }
         };
-        tasks.push(TaskRequest::download(
-            "Download ConfigPack".to_string(),
-            configpack.url.unwrap(),
-            get_configpack_path(),
-        ));
+
+        let configpack_str = get_configpack_path();
+        let configpack_path = Path::new(&configpack_str);
+
+        debug!("检查本地ConfigPack at {:?}", configpack_path);
+        // Check local configpack
+        let local = MSMOD::from_file(configpack_path, "", None);
+        debug!("本地 MD5: {:?}, 远程 MD5: {:?}", local.md5, configpack.md5);
+        if local.md5 != configpack.md5 {
+            info!("ConfigPack mismatch or missing, adding download task");
+            tasks.push(TaskRequest::download(
+                "Download ConfigPack".to_string(),
+                configpack.url.unwrap(),
+                configpack_str,
+            ));
+        } else {
+            debug!("ConfigPack is up to date");
+        }
     }
 
     // Check backup dirctory
@@ -152,6 +178,7 @@ async fn apply_diff(
         let strpath = format!("{}/bakmods", getdotminecraft());
         let backupdir = Path::new(&strpath);
         if !backupdir.exists() {
+            info!("Creating backup directory at {:?}", backupdir);
             tokio::fs::create_dir_all(backupdir).await?;
         }
     }
@@ -160,6 +187,7 @@ async fn apply_diff(
         match diff.difftype {
             DiffType::NEWED | DiffType::MODIFIED => {
                 if let Some(remote) = &diff.remote {
+                    debug!("Adding download task for: {}", remote.path);
                     tasks.push(TaskRequest::download(
                         format!("下载{}", remote.path.clone()),
                         remote.url.clone().unwrap(),
@@ -170,12 +198,14 @@ async fn apply_diff(
             DiffType::DELETED => {
                 if let Some(local) = &diff.local {
                     if backup {
+                        debug!("Adding backup/delete task for: {}", local.path);
                         tasks.push(TaskRequest::rename(
                             format!("删除{}", local.path),
                             format!("{}/mods/{}", getdotminecraft(), local.path),
                             format!("{}/bakmods/{}", getdotminecraft(), local.path),
                         ));
                     } else {
+                        debug!("Adding delete task for: {}", local.path);
                         tasks.push(TaskRequest::delete(
                             format!("删除{}", local.path),
                             format!("{}/mods/{}", getdotminecraft(), local.path),
@@ -186,10 +216,12 @@ async fn apply_diff(
         }
     }
 
+    info!("Submitting {} tasks", tasks.len());
     summit_task(state.clone(), tasks).await?;
 
     // unzip configpack
     if sync_config_pack {
+        info!("Unzipping config pack");
         let unziptask = TaskRequest::unzip(
             "Process ConfigPack".to_string(),
             get_configpack_path(),
@@ -199,6 +231,7 @@ async fn apply_diff(
         summit_task(state.clone(), vec![unziptask]).await?;
     }
 
+    info!("Diff application finished");
     Ok(())
 }
 
@@ -215,7 +248,7 @@ async fn summit_task(state: State<'_, AppRuntime>, tasks: Vec<TaskRequest>) -> R
         return Err(Error::AlreadyRunning);
     }
 
-    println!("init taskmanager now");
+    info!("init taskmanager now");
     // init TaskManager and run tasks
     let mut taskmanager = TaskManager::new(20);
     let running_task = taskmanager.get_vec_task_status().await;
@@ -226,7 +259,8 @@ async fn summit_task(state: State<'_, AppRuntime>, tasks: Vec<TaskRequest>) -> R
     }
 
     // Post: set is_running to false after tasks complete
-    if let Err(_e) = taskmanager.run(tasks).await {
+    if let Err(e) = taskmanager.run(tasks).await {
+        error!("Task execution failed: {:?}", e);
         return Err(Error::Err);
     }
 
@@ -253,7 +287,7 @@ async fn getall_task(state: State<'_, AppRuntime>) -> Result<Vec<TaskStatus>, Er
 build_info::build_info!(fn build_info);
 #[tauri::command]
 async fn init_runtime(state: State<'_, AppRuntime>) -> Result<(), Error> {
-    println!("Initializing runtime...");
+    info!("Initializing runtime...");
 
     let mut state = state.lock().await;
     let client = state.try_get_client().await?;
@@ -266,17 +300,13 @@ async fn init_runtime(state: State<'_, AppRuntime>) -> Result<(), Error> {
         version: format!("v{}", env!("CARGO_PKG_VERSION")),
         buildinfo: {
             let bi = build_info();
+            let commit_id = match &bi.version_control {
+                Some(vc) => vc.git().unwrap().commit_short_id.as_str(),
+                None => "unknown",
+            };
             format!(
                 "{} {} {} at {}",
-                bi.crate_info.name,
-                bi.target.os,
-                match &bi.version_control {
-                    Some(vc) => {
-                        vc.git().unwrap().commit_short_id.as_str()
-                    }
-                    None => "unknown",
-                },
-                bi.timestamp
+                bi.crate_info.name, bi.target.os, commit_id, bi.timestamp
             )
         },
         release_info,
@@ -286,6 +316,8 @@ async fn init_runtime(state: State<'_, AppRuntime>) -> Result<(), Error> {
         has_pclce: client.get_launcher_pclce().is_some(),
         has_configpack: client.get_configpack().is_some(),
     });
+
+    info!("Runtime initialized: {}", state.runtime_info.as_ref().unwrap().title);
 
     Ok(())
 }
@@ -308,6 +340,11 @@ async fn is_init(state: State<'_, AppRuntime>) -> Result<bool, Error> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .setup(|app| {
             // let mut downloader = Downloader::new(8);
@@ -318,6 +355,7 @@ pub fn run() {
                 running_tasks: Arc::new(Mutex::new(Vec::new())),
                 is_running: Arc::new(Mutex::new(false)),
             }));
+            info!("MSSYNC启动完成");
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
