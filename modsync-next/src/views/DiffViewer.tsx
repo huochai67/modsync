@@ -1,12 +1,14 @@
-
-import React, { useCallback, useEffect } from 'react';
-import { MOCK_MOD_DIFFS } from '@/mockData';
-import { MODDiff } from '@/types';
-import { Button, Checkbox, Label, ListBox, Separator } from '@heroui/react';
-import { invoke } from '@tauri-apps/api/core';
-import ModDiffListItem from '@/components/ModDiffListItem';
+import React, { useCallback, useEffect } from "react";
+import { MOCK_MOD_DIFFS } from "@/mockData";
+import { MODDiff } from "@/types";
+import { Button, Checkbox, Label, ListBox, Separator } from "@heroui/react";
+import { invoke } from "@tauri-apps/api/core";
+import ModDiffListItem from "@/components/ModDiffListItem";
+import { useNavigate } from "react-router-dom";
 
 const DiffViewer: React.FC = () => {
+  const navigate = useNavigate();
+
   const [diff, setDiff] = React.useState<Array<MODDiff>>(MOCK_MOD_DIFFS);
   const [initialized, setInitialized] = React.useState(false);
 
@@ -14,12 +16,12 @@ const DiffViewer: React.FC = () => {
   const fetchModDiff = useCallback(async () => {
     setInitialized(false);
     try {
-      const initialized = await invoke<boolean>('is_init');
+      const initialized = await invoke<boolean>("is_init");
       if (!initialized) {
-        await invoke<void>('init_runtime');
+        await invoke<void>("init_runtime");
       }
-      const moddiffs = await invoke<MODDiff[]>('get_diff');
-      setDiff(moddiffs)
+      const moddiffs = await invoke<MODDiff[]>("get_diff");
+      setDiff(moddiffs);
     } catch (error) {
       alert("Failed to load runtime : " + error);
     } finally {
@@ -31,7 +33,9 @@ const DiffViewer: React.FC = () => {
   }, []);
 
   const [syncConfigPack, setSyncConfigPack] = React.useState<boolean>(true);
-  const [selectKeys, setSelectKeys] = React.useState<string | Set<string>>("all");
+  const [selectKeys, setSelectKeys] = React.useState<string | Set<string>>(
+    "all",
+  );
   const onBtnSyncClicked = async () => {
     if (!initialized) return;
 
@@ -45,27 +49,46 @@ const DiffViewer: React.FC = () => {
       selected_diffs = diff.filter((d) => d.name === selectKeys);
     }
     console.log("同步以下差异项：", selected_diffs);
-    invoke<void>('apply_diff', { diffs: selected_diffs, backup: true, syncConfigPack: syncConfigPack }).then(() => {
-      alert("完成！")
-      window.location.href = 'http://localhost:1420/#/';
+    invoke<void>("apply_diff", {
+      diffs: selected_diffs,
+      backup: true,
+      syncConfigPack: syncConfigPack,
+    }).then(() => {
+      alert("完成！");
+      navigate("/");
     });
 
-    window.location.href = 'http://localhost:1420/#/taskmanager';
-  }
+    navigate("/taskmanager");
+  };
 
   return (
     <div className="w-full h-full space-y-2">
       <div className="flex flex-row justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">文件对比</h1>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">
+            文件对比
+          </h1>
           <p className="text-muted mt-1">详细显示每一个差异</p>
         </div>
         <div className="flex flex-col items-center space-y-1">
-          <div className='w-full flex justify-end'>
-            <Button onClick={onBtnSyncClicked} isDisabled={((!initialized) || diff.length === 0) && !syncConfigPack}>开始同步</Button>
+          <div className="w-full flex justify-end">
+            <Button
+              onClick={onBtnSyncClicked}
+              isDisabled={
+                !initialized || (diff.length === 0 && !syncConfigPack)
+              }
+            >
+              开始同步
+            </Button>
           </div>
           <div className="flex items-center gap-3">
-            <Checkbox id="sync-config-pack" isSelected={syncConfigPack} onChange={(e) => { setSyncConfigPack(e) }}>
+            <Checkbox
+              id="sync-config-pack"
+              isSelected={syncConfigPack}
+              onChange={(e) => {
+                setSyncConfigPack(e);
+              }}
+            >
               <Checkbox.Control>
                 <Checkbox.Indicator />
               </Checkbox.Control>
@@ -77,23 +100,34 @@ const DiffViewer: React.FC = () => {
       </div>
       <Separator />
 
-      {initialized ? diff.length !== 0 ?
-        <div className="bg-background-tertiary border rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <ListBox selectionMode="multiple" aria-label='l' defaultSelectedKeys={"all"} onSelectionChange={(keys) => { setSelectKeys(keys as string | Set<string>) }}>
-              {diff.map((diff) => <ModDiffListItem key={diff.name} moddiff={diff} />)}
-            </ListBox>
+      {initialized ? (
+        diff.length !== 0 ? (
+          <div className="bg-background-tertiary border rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <ListBox
+                selectionMode="multiple"
+                aria-label="l"
+                defaultSelectedKeys={"all"}
+                onSelectionChange={(keys) => {
+                  setSelectKeys(keys as string | Set<string>);
+                }}
+              >
+                {diff.map((diff) => (
+                  <ModDiffListItem key={diff.name} moddiff={diff} />
+                ))}
+              </ListBox>
+            </div>
           </div>
-        </div>
-        :
-        <div className="flex items-center justify-center h-64">
-          <span className="text-muted">没有检测到差异</span>
-        </div>
-        :
+        ) : (
+          <div className="flex items-center justify-center h-64">
+            <span className="text-muted">没有检测到差异</span>
+          </div>
+        )
+      ) : (
         <div className="flex items-center justify-center h-64">
           <span className="text-muted">加载中...</span>
         </div>
-      }
+      )}
     </div>
   );
 };
