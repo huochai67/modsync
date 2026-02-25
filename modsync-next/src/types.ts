@@ -1,5 +1,4 @@
-
-export type ChangeType = 'added' | 'modified' | 'deleted' | 'renamed';
+export type ChangeType = "added" | "modified" | "deleted" | "renamed";
 
 export interface FileDiff {
   id: string;
@@ -24,12 +23,12 @@ export interface MSMOD {
 
 export enum Kind {
   PLAIN = "PLAIN",
-  MOD = "MOD"
+  MOD = "MOD",
 }
 export enum DiffType {
   NEWED = "NEWED",
   DELETED = "DELETED",
-  MODIFIED = "MODIFIED"
+  MODIFIED = "MODIFIED",
 }
 export interface MODDiff {
   kind: Kind;
@@ -52,24 +51,24 @@ export interface RuntimeInfo {
   title: string;
   version: string;
   buildinfo: string;
-  has_serverdat: boolean,
-  has_options: boolean,
-  has_hcml: boolean,
-  has_pclce: boolean,
+  has_serverdat: boolean;
+  has_options: boolean;
+  has_hcml: boolean;
+  has_pclce: boolean;
   release_info: ReleaseInfo[];
 }
 
 export enum TaskType {
   Download = "Download",
   Rename = "Rename",
-  Delete = "Delete"
+  Delete = "Delete",
 }
 
 export enum TaskEventType {
   Started = "Started",
   Progress = "Progress",
   Finished = "Finished",
-  Error = "Error"
+  Error = "Error",
 }
 
 export interface TaskStatus {

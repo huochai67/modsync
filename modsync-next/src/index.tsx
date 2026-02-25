@@ -1,17 +1,17 @@
-import ReactDOM from 'react-dom/client';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import ReactDOM from "react-dom/client";
+import { HashRouter as Router, Routes, Route } from "react-router-dom";
 
-import Layout from './components/Layout';
+import Layout from "./components/Layout";
 
-import Dashboard from './views/Dashboard';
-import DiffViewer from './views/DiffViewer';
-import About from './views/About';
-import Changelog from './views/Changelog';
-import Utilities from './views/Utilities';
-import TaskManager from './views/TaskManager';
-import TestPage from './views/testpage';
+import Dashboard from "./views/Dashboard";
+import DiffViewer from "./views/DiffViewer";
+import About from "./views/About";
+import Changelog from "./views/Changelog";
+import Utilities from "./views/Utilities";
+import TaskManager from "./views/TaskManager";
+import TestPage from "./views/testpage";
 
-const rootElement = document.getElementById('root');
+const rootElement = document.getElementById("root");
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
@@ -30,5 +30,5 @@ root.render(
         <Route path="/test" element={<TestPage />} />
       </Routes>
     </Layout>
-  </Router>
+  </Router>,
 );

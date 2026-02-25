@@ -1,6 +1,5 @@
-
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   User,
   Calendar,
@@ -9,11 +8,11 @@ import {
   ArrowRight,
   PlusCircle,
   MinusCircle,
-  FileCode
-} from 'lucide-react';
-import { RuntimeContext } from '@/runtimecontext';
-import { formatBytes } from '@/utils';
-import { Button, Separator } from '@heroui/react';
+  FileCode,
+} from "lucide-react";
+import { RuntimeContext } from "@/runtimecontext";
+import { formatBytes } from "@/utils";
+import { Button, Separator } from "@heroui/react";
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -41,7 +40,11 @@ const Dashboard: React.FC = () => {
                 {lastrelease.changelog}
               </h2>
             </div>
-            <Button className="h-12 rounded-xl font-bold hover:translate-x-2 transition-transform" variant='primary' onClick={() => navigate('/diffs')}>
+            <Button
+              className="h-12 rounded-xl font-bold hover:translate-x-2 transition-transform"
+              variant="primary"
+              onClick={() => navigate("/diffs")}
+            >
               对比文件
               <ArrowRight />
             </Button>
@@ -54,7 +57,9 @@ const Dashboard: React.FC = () => {
                 <User size={20} className=" text-muted" />
               </div>
               <div>
-                <p className="text-xl text-muted uppercase font-bold tracking-wider">作者</p>
+                <p className="text-xl text-muted uppercase font-bold tracking-wider">
+                  作者
+                </p>
                 <p className="font-medium">{"雪龙花❄"}</p>
               </div>
             </div>
@@ -63,11 +68,14 @@ const Dashboard: React.FC = () => {
                 <Calendar size={20} className=" text-muted" />
               </div>
               <div>
-                <p className="text-xl text-muted uppercase font-bold tracking-wider">日期</p>
-                <p className="font-medium text-sm text-ellipsis text-nowrap">{lastrelease.date}</p>
+                <p className="text-xl text-muted uppercase font-bold tracking-wider">
+                  日期
+                </p>
+                <p className="font-medium text-sm text-ellipsis text-nowrap">
+                  {lastrelease.date}
+                </p>
               </div>
             </div>
-
           </div>
         </div>
 
@@ -77,23 +85,35 @@ const Dashboard: React.FC = () => {
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <FileCode size={16} className=" text-muted" />
-              <span className="text-2xl font-bold ">{formatBytes(lastrelease.size, true)}</span>
+              <span className="text-2xl font-bold ">
+                {formatBytes(lastrelease.size, true)}
+              </span>
             </div>
-            <span className="text-xl text-muted uppercase font-bold tracking-widest">大小</span>
+            <span className="text-xl text-muted uppercase font-bold tracking-widest">
+              大小
+            </span>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <PlusCircle size={16} className="text-emerald-500" />
-              <span className="text-2xl font-bold text-emerald-500">+ {lastrelease.adds?.length || 0}</span>
+              <span className="text-2xl font-bold text-emerald-500">
+                + {lastrelease.adds?.length || 0}
+              </span>
             </div>
-            <span className="text-xl text-muted uppercase font-bold tracking-widest">新增</span>
+            <span className="text-xl text-muted uppercase font-bold tracking-widest">
+              新增
+            </span>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <MinusCircle size={16} className="text-rose-500" />
-              <span className="text-2xl font-bold text-rose-500">- {lastrelease.subs?.length || 0}</span>
+              <span className="text-2xl font-bold text-rose-500">
+                - {lastrelease.subs?.length || 0}
+              </span>
             </div>
-            <span className="text-xl text-muted uppercase font-bold tracking-widest">删减</span>
+            <span className="text-xl text-muted uppercase font-bold tracking-widest">
+              删减
+            </span>
           </div>
         </div>
       </div>
@@ -112,10 +132,15 @@ const Dashboard: React.FC = () => {
         <button className="flex items-center justify-between p-6  bg-background-secondary border  rounded-xl hover:bg-background-tertiary transition-all group">
           <div className="text-left">
             <h3 className="font-semibold ">移除的MOD有备份</h3>
-            <p className="text-sm text-muted">移除的mod在 .minecraft/bakmods 中</p>
+            <p className="text-sm text-muted">
+              移除的mod在 .minecraft/bakmods 中
+            </p>
           </div>
           <div className="bg-slate-800 p-2 rounded-lg group-hover:bg-purple-600/20 transition-colors">
-            <Hash size={20} className="text-muted group-hover:text-purple-400" />
+            <Hash
+              size={20}
+              className="text-muted group-hover:text-purple-400"
+            />
           </div>
         </button>
       </div>
