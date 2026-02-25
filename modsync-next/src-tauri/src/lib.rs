@@ -135,7 +135,12 @@ async fn apply_diff(
     backup: bool,
     sync_config_pack: bool,
 ) -> Result<(), Error> {
-    info!("Applying {} diffs (backup: {}, sync_config_pack: {})", diffs.len(), backup, sync_config_pack);
+    info!(
+        "Applying {} diffs (backup: {}, sync_config_pack: {})",
+        diffs.len(),
+        backup,
+        sync_config_pack
+    );
     let mut tasks: Vec<TaskRequest> = vec![];
 
     if sync_config_pack {
@@ -150,26 +155,31 @@ async fn apply_diff(
                 error!("No config pack found in MSConfig");
                 return Err(Error::MSCore(
                     modsync_core::error::Error::MSConfigNoConfigPack,
-                ))
+                ));
             }
         };
 
         let configpack_str = get_configpack_path();
         let configpack_path = Path::new(&configpack_str);
+        let mut downloadconfigpack = true;
 
         debug!("检查本地ConfigPack at {:?}", configpack_path);
         // Check local configpack
-        let local = MSMOD::from_file(configpack_path, "", None);
-        debug!("本地 MD5: {:?}, 远程 MD5: {:?}", local.md5, configpack.md5);
-        if local.md5 != configpack.md5 {
-            info!("ConfigPack mismatch or missing, adding download task");
+        if configpack_path.exists() {
+            let local = MSMOD::from_file(configpack_path, "", None);
+            debug!("本地 MD5: {:?}, 远程 MD5: {:?}", local.md5, configpack.md5);
+            if local.md5 == configpack.md5 {
+                downloadconfigpack = false
+            }
+        }
+
+        info!("需要下载ConfigPack: {}", downloadconfigpack);
+        if downloadconfigpack {
             tasks.push(TaskRequest::download(
                 "Download ConfigPack".to_string(),
                 configpack.url.unwrap(),
                 configpack_str,
             ));
-        } else {
-            debug!("ConfigPack is up to date");
         }
     }
 
@@ -317,7 +327,10 @@ async fn init_runtime(state: State<'_, AppRuntime>) -> Result<(), Error> {
         has_configpack: client.get_configpack().is_some(),
     });
 
-    info!("Runtime initialized: {}", state.runtime_info.as_ref().unwrap().title);
+    info!(
+        "Runtime initialized: {}",
+        state.runtime_info.as_ref().unwrap().title
+    );
 
     Ok(())
 }
