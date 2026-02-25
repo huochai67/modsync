@@ -49,12 +49,31 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     fetchRuntime();
   }, []);
 
+  const [is_syncing, setIsSyncing] = React.useState<boolean>(false);
+  useEffect(() => {
+    setInterval(async () => {
+      try {
+        let is_syncing = await invoke<boolean>("is_running");
+        console.log(is_syncing);
+        setIsSyncing(is_syncing);
+      } catch (error) {
+        alert("Failed to fetch TaskInfo: " + error);
+        //exit here
+      }
+    }, 1000); // 1000 milliseconds = 1 second
+  }, []);
+
   const navigate = useNavigate();
   const location = useLocation();
 
   const navItems = [
     { label: "首页", icon: <LayoutDashboard size={20} />, path: "/" },
-    { label: "文件差异", icon: <FileDiff size={20} />, path: "/diffs" },
+    {
+      label: "文件差异",
+      icon: <FileDiff size={20} />,
+      path: "/diffs",
+      isDisabled: is_syncing,
+    },
     { label: "任务管理", icon: <List size={20} />, path: "/taskmanager" },
     { label: "实用功能", icon: <Settings2 size={20} />, path: "/utilities" },
     { label: "更新日志", icon: <List size={20} />, path: "/changelog" },
@@ -78,6 +97,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {navItems.map((item) => (
             <Button
+              isDisabled={item.isDisabled}
               variant="ghost"
               key={item.path}
               onClick={() => navigate(item.path)}
