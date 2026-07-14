@@ -16,10 +16,6 @@ const DiffViewer: React.FC = () => {
   const fetchModDiff = useCallback(async () => {
     setInitialized(false);
     try {
-      const initialized = await invoke<boolean>("is_init");
-      if (!initialized) {
-        await invoke<void>("init_runtime");
-      }
       const moddiffs = await invoke<MODDiff[]>("get_diff");
       setDiff(moddiffs);
     } catch (error) {
