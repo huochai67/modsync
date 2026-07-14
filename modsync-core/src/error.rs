@@ -58,4 +58,10 @@ pub enum Error {
 
     #[error("mpsc error")]
     MSTaskMPSC,
+
+    #[error("invalid task: {0}")]
+    InvalidTask(String),
+
+    #[error("validation failed: {0}")]
+    Validation(String),
 }

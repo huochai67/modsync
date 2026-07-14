@@ -356,3 +356,42 @@ impl MSClient {
     //     Ok(tasks)
     // }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mod_file(path: &str, md5: &str) -> MSMOD {
+        MSMOD::new(md5.to_string(), path.to_string(), 1, None, None, None)
+    }
+
+    #[test]
+    fn diff_identifies_add_modify_and_delete() {
+        let local = vec![
+            mod_file("same.jar", "a"),
+            mod_file("removed.jar", "b"),
+            mod_file("changed.jar", "c"),
+        ];
+        let remote = vec![
+            mod_file("same.jar", "a"),
+            mod_file("added.jar", "d"),
+            mod_file("changed.jar", "e"),
+        ];
+        let diffs = MSClient::get_difflist_with(&local, &remote, None).unwrap();
+
+        // A changed checksum is represented by a modification and its old local entry.
+        assert_eq!(diffs.len(), 4);
+        assert!(diffs
+            .iter()
+            .any(|diff| diff.name == "added.jar" && matches!(diff.difftype, DiffType::NEWED)));
+        assert!(diffs
+            .iter()
+            .any(|diff| diff.name == "removed.jar" && matches!(diff.difftype, DiffType::DELETED)));
+        assert!(diffs
+            .iter()
+            .any(|diff| diff.name == "changed.jar" && matches!(diff.difftype, DiffType::MODIFIED)));
+        assert!(diffs
+            .iter()
+            .any(|diff| diff.name == "changed.jar" && matches!(diff.difftype, DiffType::DELETED)));
+    }
+}

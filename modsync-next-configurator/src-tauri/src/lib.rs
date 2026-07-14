@@ -4,6 +4,7 @@ use std::fs::OpenOptions;
 use std::io::Read;
 use std::io::Write;
 use std::path::Path;
+use std::path::PathBuf;
 use std::vec;
 
 use modsync_core::msclient::MSClient;
@@ -13,12 +14,28 @@ use modsync_core::msconfig::ReleaseInfo;
 use modsync_core::msmod::MSMOD;
 
 fn writetofile(filepath: &str, data: &[u8]) -> Result<usize, Box<dyn std::error::Error>> {
-    Ok(OpenOptions::new()
+    let path = Path::new(filepath);
+    if let Some(parent) = path.parent() {
+        create_dir_all(parent)?;
+    }
+    let temporary = path.with_extension(format!(
+        "{}.tmp",
+        path.extension().and_then(|v| v.to_str()).unwrap_or("file")
+    ));
+    let written = OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
-        .open(filepath)?
-        .write(data)?)
+        .open(&temporary)?
+        .write(data)?;
+    std::fs::rename(&temporary, path)?;
+    Ok(written)
+}
+
+fn data_root() -> PathBuf {
+    std::env::var("MODSYNC_DATA_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("./data"))
 }
 
 /// 更新日志文件并返回所有日志
@@ -50,8 +67,14 @@ pub fn update_and_get_logs(new_log: ReleaseInfo, path: &str) -> std::io::Result<
     );
 
     // 2. 追加写入文件 (如果文件不存在则创建)
-    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
-    file.write_all(new_entry.as_bytes())?;
+    let mut updated = if path.exists() {
+        std::fs::read_to_string(path)?
+    } else {
+        String::new()
+    };
+    updated.push_str(&new_entry);
+    writetofile(&path.to_string_lossy(), updated.as_bytes())
+        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
 
     // 3. 返回所有日志
     logs.push(new_log);
@@ -203,20 +226,30 @@ fn generate_releaseinfo(
 
 #[tauri::command]
 fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Result<(), String> {
-    let _ = create_dir_all("./data/data");
+    if version.trim().is_empty() || changelog.trim().is_empty() || title.trim().is_empty() {
+        return Err("版本、标题和更新日志不能为空".into());
+    }
+    if !(serverurl.starts_with("https://") || serverurl.starts_with("http://")) {
+        return Err("Server URL 必须是 http:// 或 https:// 地址".into());
+    }
+    let root = data_root();
+    let data_dir = root.join("data");
+    let mods_dir = data_dir.join("mods");
+    create_dir_all(&data_dir).map_err(|err| err.to_string())?;
 
     // Build ModList
-    if !Path::new("./data/data/mods").exists() {
+    if !mods_dir.exists() {
         return Err("无mod文件夹".into());
     }
 
     let modlist_url = Some(format!("{}modslist.json", serverurl));
-    let old_modlist = match MSMOD::from_jsonfile("./data/modslist.json") {
+    let old_modlist_path = root.join("modslist.json");
+    let old_modlist = match MSMOD::from_jsonfile(&old_modlist_path.to_string_lossy()) {
         Ok(old_modlist) => old_modlist,
         Err(_) => vec![],
     };
     let vecmsmod = match MSMOD::from_directory(
-        "./data/data/mods",
+        &mods_dir.to_string_lossy(),
         Some(format!("{}data/mods/", serverurl).as_str()),
     ) {
         Ok(vecmsmod) => vecmsmod,
@@ -229,14 +262,15 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
     }
 
     if let Err(err) = writetofile(
-        "./data/modslist.json",
+        &old_modlist_path.to_string_lossy(),
         serde_json::to_string(&vecmsmod).unwrap().as_bytes(),
     ) {
         return Err(err.to_string());
     }
 
     // Build logs
-    let mut logs = match read_all_logs(Path::new("./data/release_logs.txt")) {
+    let release_log_path = root.join("release_logs.txt");
+    let mut logs = match read_all_logs(&release_log_path) {
         Ok(logs) => logs,
         Err(err) => {
             return Err(err.to_string());
@@ -247,13 +281,15 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
         if size == 0 {
             // todo!("没有更新内容");
         } else {
-            if let Ok(newlogs) = update_and_get_logs(releaseinfo, "./data/release_logs.txt") {
+            if let Ok(newlogs) =
+                update_and_get_logs(releaseinfo, &release_log_path.to_string_lossy())
+            {
                 logs = newlogs;
             };
         }
     }
     if let Err(err) = writetofile(
-        "./data/modslist.json",
+        &old_modlist_path.to_string_lossy(),
         serde_json::to_string(&vecmsmod).unwrap().as_bytes(),
     ) {
         return Err(err.to_string());
@@ -264,24 +300,28 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
     let mut serverlist_url = None;
     let mut launcher_hmcl_url = None;
     let mut launcher_pclce_url = None;
-    if Path::new("./data/data/options.txt").exists() {
+    if data_dir.join("options.txt").exists() {
         option_url = Some(format!("{}data/options.txt", serverurl));
     }
-    if Path::new("./data/data/servers.dat").exists() {
+    if data_dir.join("servers.dat").exists() {
         serverlist_url = Some(format!("{}data/servers.dat", serverurl));
     }
-    if Path::new("./data/data/hmcl.exe").exists() {
+    if data_dir.join("hmcl.exe").exists() {
         launcher_hmcl_url = Some(format!("{}data/hmcl.exe", serverurl));
     }
-    if Path::new("./data/data/pclce.exe").exists() {
+    if data_dir.join("pclce.exe").exists() {
         launcher_pclce_url = Some(format!("{}data/pclce.exe", serverurl));
     }
-    let configpack = match Path::new("./data/data/config.zip").exists() {
-        true => Some(MSMOD::from_file(
-            Path::new("./data/data/config.zip"),
-            "./data/data",
-            Some(format!("{}data/", serverurl).as_str()),
-        )),
+    let config_zip = data_dir.join("config.zip");
+    let configpack = match config_zip.exists() {
+        true => Some(
+            MSMOD::from_file(
+                &config_zip,
+                &data_dir.to_string_lossy(),
+                Some(format!("{}data/", serverurl).as_str()),
+            )
+            .map_err(|err| err.to_string())?,
+        ),
         false => None,
     };
     let metadata = MetaData::new(
@@ -301,7 +341,7 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
         title.to_string(),
     );
     if let Err(err) = writetofile(
-        "./data/info.json",
+        &root.join("info.json").to_string_lossy(),
         serde_json::to_string(&config).unwrap().as_bytes(),
     ) {
         return Err(err.to_string());
@@ -312,10 +352,11 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
 
 #[tauri::command]
 fn get_config() -> Option<MSConfig> {
-    if !Path::new("./data/info.json").exists() {
+    let path = data_root().join("info.json");
+    if !path.exists() {
         return None;
     }
-    if let Ok(config) = MSConfig::from_file("./data/info.json") {
+    if let Ok(config) = MSConfig::from_file(&path.to_string_lossy()) {
         return Some(config);
     }
     return None;

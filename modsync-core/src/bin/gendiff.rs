@@ -8,10 +8,11 @@ async fn main() {
     let client = match MSClientBuilder::new()
         .msconfig(config)
         .path("./".into())
-        .build() {
-            Ok(client) => client,
-            Err(err) => panic!("{:?}", err),
-        }; 
+        .build()
+    {
+        Ok(client) => client,
+        Err(err) => panic!("{:?}", err),
+    };
 
     if let Ok(locallist) = client.get_modlist_local() {
         println!("{:?}", locallist);

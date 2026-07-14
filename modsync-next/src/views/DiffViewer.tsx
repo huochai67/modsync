@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect } from "react";
 import { MOCK_MOD_DIFFS } from "@/mockData";
-import { MODDiff } from "@/types";
+import { MODDiff, TaskRunSummary } from "@/types";
 import { Button, Checkbox, Label, ListBox, Separator } from "@heroui/react";
 import { invoke } from "@tauri-apps/api/core";
 import ModDiffListItem from "@/components/ModDiffListItem";
@@ -39,7 +39,6 @@ const DiffViewer: React.FC = () => {
   const onBtnSyncClicked = async () => {
     if (!initialized) return;
 
-    console.log("Syncing selected items:", selectKeys);
     let selected_diffs: MODDiff[] = [];
     if (selectKeys === "all") {
       selected_diffs = diff;
@@ -48,17 +47,18 @@ const DiffViewer: React.FC = () => {
     } else {
       selected_diffs = diff.filter((d) => d.name === selectKeys);
     }
-    console.log("同步以下差异项：", selected_diffs);
-    invoke<void>("apply_diff", {
-      diffs: selected_diffs,
-      backup: true,
-      syncConfigPack: syncConfigPack,
-    }).then(() => {
-      alert("完成！");
-      navigate("/");
-    });
-
-    navigate("/taskmanager");
+    try {
+      const summary = await invoke<TaskRunSummary>("apply_diff", {
+        diffs: selected_diffs,
+        backup: true,
+        syncConfigPack,
+      });
+      alert(summary.failed === 0 ? `同步完成：${summary.succeeded} 项成功。` : `同步完成：${summary.succeeded} 项成功，${summary.failed} 项失败。`);
+      navigate("/taskmanager");
+    } catch (error) {
+      alert("同步失败：" + error);
+      navigate("/taskmanager");
+    }
   };
 
   return (

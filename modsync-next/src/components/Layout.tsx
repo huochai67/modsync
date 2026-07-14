@@ -51,16 +51,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const [is_syncing, setIsSyncing] = React.useState<boolean>(false);
   useEffect(() => {
-    setInterval(async () => {
+    const interval = window.setInterval(async () => {
       try {
         let is_syncing = await invoke<boolean>("is_running");
-        console.log(is_syncing);
         setIsSyncing(is_syncing);
       } catch (error) {
-        alert("Failed to fetch TaskInfo: " + error);
-        //exit here
+        console.error("Failed to fetch task state", error);
       }
-    }, 1000); // 1000 milliseconds = 1 second
+    }, 1000);
+    return () => window.clearInterval(interval);
   }, []);
 
   const navigate = useNavigate();

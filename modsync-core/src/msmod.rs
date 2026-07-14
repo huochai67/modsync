@@ -64,13 +64,35 @@ impl MSMOD {
         Ok(serde_json::from_str::<Vec<MSMOD>>(str.as_str())?)
     }
 
-    pub fn from_file(filepath: &Path, parentpath: &str, serverurl: Option<&str>) -> MSMOD {
-        let mut file = File::open(filepath).unwrap();
+    pub fn from_file(
+        filepath: &Path,
+        parentpath: &str,
+        serverurl: Option<&str>,
+    ) -> Result<MSMOD, Error> {
+        let mut file = File::open(filepath)?;
         let mut buffer = Vec::new();
-        let size = file.read_to_end(&mut buffer).unwrap();
+        let size = file.read_to_end(&mut buffer)?;
 
-        let strfilepath = filepath.as_os_str().to_str().unwrap().to_string();
-        let strpath = &strfilepath[parentpath.len() + 1..].replace('\\', "/");
+        let strfilepath = filepath.to_string_lossy().to_string();
+        let strpath = if parentpath.is_empty() {
+            filepath
+                .file_name()
+                .ok_or_else(|| Error::Validation("file has no name".to_string()))?
+                .to_string_lossy()
+                .replace('\\', "/")
+        } else {
+            filepath
+                .strip_prefix(parentpath)
+                .map_err(|_| {
+                    Error::Validation(format!(
+                        "{} is not under {}",
+                        filepath.display(),
+                        parentpath
+                    ))
+                })?
+                .to_string_lossy()
+                .replace('\\', "/")
+        };
 
         let digest = md5::compute(buffer);
         let url = match serverurl {
@@ -122,14 +144,14 @@ impl MSMOD {
             }
         };
 
-        MSMOD::new(
+        Ok(MSMOD::new(
             format!("{:X}", digest),
-            strpath.to_string(),
+            strpath,
             size,
             url,
             modid,
             version,
-        )
+        ))
     }
 
     pub fn from_directory_impl(
@@ -143,7 +165,7 @@ impl MSMOD {
             let entry = entry_?;
             let entrytype = entry.file_type()?;
             if entrytype.is_dir() {
-                match Self::from_directory_impl(entry.path().to_str().unwrap(), rootdir, serverurl)
+                match Self::from_directory_impl(&entry.path().to_string_lossy(), rootdir, serverurl)
                 {
                     Ok(mut ret2) => ret.append(&mut ret2),
                     Err(err) => return Err(err),
@@ -151,7 +173,7 @@ impl MSMOD {
             }
             if entrytype.is_file() {
                 let path = entry.path();
-                ret.push(MSMOD::from_file(path.as_path(), rootdir, serverurl));
+                ret.push(MSMOD::from_file(path.as_path(), rootdir, serverurl)?);
             }
         }
         Ok(ret)

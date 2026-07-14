@@ -29,15 +29,28 @@ pub struct TaskRequest {
 
     // 重命名任务的新路径
     pub new_path: Option<String>,
+
+    /// Expected uppercase MD5 for downloaded content. Optional for backwards compatibility.
+    pub expected_md5: Option<String>,
 }
 impl TaskRequest {
     pub fn download(name: String, url: String, file_path: String) -> Self {
+        Self::download_verified(name, url, file_path, None)
+    }
+
+    pub fn download_verified(
+        name: String,
+        url: String,
+        file_path: String,
+        expected_md5: Option<String>,
+    ) -> Self {
         Self {
             name,
             file_path,
             task_type: TaskType::Download,
             url: Some(url),
             new_path: None,
+            expected_md5,
         }
     }
 
@@ -48,6 +61,7 @@ impl TaskRequest {
             task_type: TaskType::Delete,
             url: None,
             new_path: None,
+            expected_md5: None,
         }
     }
 
@@ -58,6 +72,7 @@ impl TaskRequest {
             task_type: TaskType::Rename,
             url: None,
             new_path: Some(new_path),
+            expected_md5: None,
         }
     }
 
@@ -68,8 +83,16 @@ impl TaskRequest {
             task_type: TaskType::UnZip,
             url: None,
             new_path: Some(dir_path),
+            expected_md5: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskRunSummary {
+    pub tasks: Vec<TaskStatus>,
+    pub succeeded: usize,
+    pub failed: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -120,7 +143,7 @@ impl TaskManager {
         self.vec_task_status.clone()
     }
 
-    pub async fn run(&mut self, targets: Vec<TaskRequest>) -> Result<(), Error> {
+    pub async fn run(&mut self, targets: Vec<TaskRequest>) -> Result<TaskRunSummary, Error> {
         let (tx, mut rx) = mpsc::channel(100);
 
         // 产生任务
@@ -138,13 +161,30 @@ impl TaskManager {
             // 每个任务创建一个独立的 Task 实例并 spawn 到 Tokio 运行时
             tokio::spawn(async move {
                 // 获取信号量许可，控制并发
-                let _permit = semaphore.acquire().await.unwrap();
+                let Ok(_permit) = semaphore.acquire().await else {
+                    let _ = tx_clone
+                        .send(TaskEvent::error(i, "task manager stopped".to_string()))
+                        .await;
+                    return;
+                };
 
                 match task.task_type {
                     TaskType::Download => {
-                        let url = task.url.clone().unwrap();
+                        let Some(url) = task.url.clone() else {
+                            let _ = tx_clone
+                                .send(TaskEvent::error(i, "download task has no URL".to_string()))
+                                .await;
+                            return;
+                        };
                         let path = task.file_path.clone();
-                        let task = DownloadTask::new(i, url, path, client, tx_clone.clone());
+                        let task = DownloadTask::new(
+                            i,
+                            url,
+                            path,
+                            task.expected_md5.clone(),
+                            client,
+                            tx_clone.clone(),
+                        );
                         if let Err(e) = task.execute().await {
                             let _ = tx_clone.send(TaskEvent::error(i, e.to_string())).await;
                         }
@@ -156,7 +196,15 @@ impl TaskManager {
                         }
                     }
                     TaskType::Rename => {
-                        let new_path = task.new_path.clone().unwrap();
+                        let Some(new_path) = task.new_path.clone() else {
+                            let _ = tx_clone
+                                .send(TaskEvent::error(
+                                    i,
+                                    "rename task has no destination".to_string(),
+                                ))
+                                .await;
+                            return;
+                        };
                         let task =
                             FileTask::rename(i, task.file_path.clone(), new_path, tx_clone.clone());
                         if let Err(e) = task.execute().await {
@@ -164,10 +212,19 @@ impl TaskManager {
                         }
                     }
                     TaskType::UnZip => {
+                        let Some(destination) = task.new_path.clone() else {
+                            let _ = tx_clone
+                                .send(TaskEvent::error(
+                                    i,
+                                    "unzip task has no destination".to_string(),
+                                ))
+                                .await;
+                            return;
+                        };
                         let task = UnZipTask::new(
                             i,
                             task.file_path.clone(),
-                            task.new_path.clone().unwrap(),
+                            destination,
                             tx_clone.clone(),
                         );
                         if let Err(e) = task.execute().await {
@@ -203,6 +260,41 @@ impl TaskManager {
             };
         }
 
-        Ok(())
+        let tasks = self.vec_task_status.lock().await.clone();
+        let failed = tasks
+            .iter()
+            .filter(|task| matches!(task.status, TaskEventType::Error))
+            .count();
+        let succeeded = tasks
+            .iter()
+            .filter(|task| matches!(task.status, TaskEventType::Finished))
+            .count();
+        Ok(TaskRunSummary {
+            tasks,
+            succeeded,
+            failed,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn failed_file_task_is_reported_in_summary() {
+        let mut manager = TaskManager::new(1);
+        let summary = manager
+            .run(vec![TaskRequest::delete(
+                "missing".to_string(),
+                "this-file-does-not-exist".to_string(),
+            )])
+            .await
+            .expect("task manager should report task failures, not crash");
+
+        assert_eq!(summary.succeeded, 0);
+        assert_eq!(summary.failed, 1);
+        assert!(matches!(summary.tasks[0].status, TaskEventType::Error));
+        assert!(summary.tasks[0].error.is_some());
     }
 }

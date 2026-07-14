@@ -11,12 +11,7 @@ const TaskProgress: React.FC<TaskProgressProps> = ({ taskStatus }) => {
   const [progress, setProgress] = React.useState(0);
   useEffect(() => {
     if (taskStatus.status === "Progress") {
-      if (
-        taskStatus.total_bytes == null ||
-        taskStatus.downloaded_bytes == null
-      ) {
-        throw new Error("Invalid task status data");
-      }
+      if (taskStatus.total_bytes == null || taskStatus.downloaded_bytes == null) return;
       const prog = (taskStatus.downloaded_bytes / taskStatus.total_bytes) * 100;
       setProgress(prog);
     } else if (taskStatus.status === "Finished") {
@@ -26,15 +21,15 @@ const TaskProgress: React.FC<TaskProgressProps> = ({ taskStatus }) => {
     }
   }, [taskStatus]);
 
-  if (progress == 100) return <></>;
-
   return (
     <Card className="min-h-20">
       <Card.Header>
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">{taskStatus.name}</h3>
           <span className="text-sm text-slate-400">
-            {progress >= 100
+            {taskStatus.status === "Error"
+              ? "失败"
+              : progress >= 100
               ? "完成"
               : progress === 0
                 ? "等待"
@@ -52,6 +47,7 @@ const TaskProgress: React.FC<TaskProgressProps> = ({ taskStatus }) => {
         </div>
       </Card.Content>
       <Card.Footer />
+      {taskStatus.error && <Card.Footer className="text-danger">{taskStatus.error}</Card.Footer>}
     </Card>
   );
 };

@@ -188,4 +188,5 @@ export const MOCK_RUNTIME_INFO: RuntimeInfo = {
   has_options: false,
   has_hcml: false,
   has_pclce: false,
+  has_configpack: false,
 };

@@ -10,4 +10,5 @@ export const RuntimeContext = React.createContext<RuntimeInfo>({
   has_options: false,
   has_hcml: false,
   has_pclce: false,
+  has_configpack: false,
 });

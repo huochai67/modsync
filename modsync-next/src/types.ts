@@ -55,6 +55,7 @@ export interface RuntimeInfo {
   has_options: boolean;
   has_hcml: boolean;
   has_pclce: boolean;
+  has_configpack: boolean;
   release_info: ReleaseInfo[];
 }
 
@@ -76,7 +77,14 @@ export interface TaskStatus {
   name: string;
   downloaded_bytes?: number;
   total_bytes?: number;
+  error?: string;
   status: TaskEventType;
+}
+
+export interface TaskRunSummary {
+  tasks: TaskStatus[];
+  succeeded: number;
+  failed: number;
 }
 
 export interface TaskRequest {

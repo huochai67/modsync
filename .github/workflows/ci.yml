@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  core:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --manifest-path modsync-core/Cargo.toml -- --check
+      - run: cargo clippy --manifest-path modsync-core/Cargo.toml -- -D warnings
+      - run: cargo test --manifest-path modsync-core/Cargo.toml
+
+  frontends:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        directory: [modsync-next, modsync-next-configurator]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.directory }}/package-lock.json
+      - run: npm ci
+        working-directory: ${{ matrix.directory }}
+      - run: npm run build
+        working-directory: ${{ matrix.directory }}

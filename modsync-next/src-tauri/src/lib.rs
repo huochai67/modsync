@@ -1,24 +1,48 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-use std::{path::Path, sync::Arc};
+use std::{
+    path::{Component, Path},
+    sync::Arc,
+};
 
 use log::{debug, error, info, warn};
 use modsync_core::{
     msclient::{DiffType, MODDiff, MSClient, MSClientBuilder},
     msconfig::{MSConfig, ReleaseInfo},
     msmod::MSMOD,
-    mstaskmanager::{TaskManager, TaskRequest, TaskStatus},
+    mstaskmanager::{TaskManager, TaskRequest, TaskRunSummary, TaskStatus},
 };
 use serde::Serialize;
 use tauri::{Manager, State};
 use tokio::sync::Mutex;
 
 fn getdotminecraft() -> String {
+    if let Ok(path) = std::env::var("MODSYNC_MINECRAFT_DIR") {
+        let _ = std::fs::create_dir_all(&path);
+        return path;
+    }
     let pwd = format!(
         "{}/.minecraft",
         std::env::current_dir().unwrap().to_str().unwrap()
     );
     let _ = std::fs::create_dir_all(pwd.clone());
     return pwd;
+}
+
+fn safe_relative_path(value: &str) -> Result<&Path, Error> {
+    let path = Path::new(value);
+    if path.is_absolute()
+        || path.components().any(|part| {
+            matches!(
+                part,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(Error::MSCore(modsync_core::error::Error::Validation(
+            format!("unsafe mod path: {value}"),
+        )));
+    }
+    Ok(path)
 }
 
 fn get_configpack_path() -> String {
@@ -38,9 +62,6 @@ enum Error {
 
     #[error("Already running")]
     AlreadyRunning,
-
-    #[error("Not running")]
-    NotRunning,
 
     #[error("Runtime not initialized")]
     NotInitialized,
@@ -84,8 +105,12 @@ impl AppRuntimeInner {
                 let client = MSClientBuilder::new()
                     .msconfig(
                         // MSConfig::get_remote_config("http://127.0.0.1:8086/info.json").await?,
-                        MSConfig::get_remote_config("https://cn.ms.nicefish4520.com/info.json")
-                            .await?,
+                        MSConfig::get_remote_config(
+                            &std::env::var("MODSYNC_CONFIG_URL").unwrap_or_else(|_| {
+                                "https://cn.ms.nicefish4520.com/info.json".to_string()
+                            }),
+                        )
+                        .await?,
                     )
                     .path(getdotminecraft())
                     .build()?;
@@ -134,7 +159,7 @@ async fn apply_diff(
     diffs: Vec<MODDiff>,
     backup: bool,
     sync_config_pack: bool,
-) -> Result<(), Error> {
+) -> Result<TaskRunSummary, Error> {
     info!(
         "Applying {} diffs (backup: {}, sync_config_pack: {})",
         diffs.len(),
@@ -166,7 +191,7 @@ async fn apply_diff(
         debug!("检查本地ConfigPack at {:?}", configpack_path);
         // Check local configpack
         if configpack_path.exists() {
-            let local = MSMOD::from_file(configpack_path, "", None);
+            let local = MSMOD::from_file(configpack_path, "", None)?;
             debug!("本地 MD5: {:?}, 远程 MD5: {:?}", local.md5, configpack.md5);
             if local.md5 == configpack.md5 {
                 downloadconfigpack = false
@@ -175,10 +200,16 @@ async fn apply_diff(
 
         info!("需要下载ConfigPack: {}", downloadconfigpack);
         if downloadconfigpack {
-            tasks.push(TaskRequest::download(
+            let url = configpack.url.ok_or_else(|| {
+                Error::MSCore(modsync_core::error::Error::Validation(
+                    "config pack has no download URL".to_string(),
+                ))
+            })?;
+            tasks.push(TaskRequest::download_verified(
                 "Download ConfigPack".to_string(),
-                configpack.url.unwrap(),
+                url,
                 configpack_str,
+                Some(configpack.md5),
             ));
         }
     }
@@ -198,10 +229,22 @@ async fn apply_diff(
             DiffType::NEWED | DiffType::MODIFIED => {
                 if let Some(remote) = &diff.remote {
                     debug!("Adding download task for: {}", remote.path);
-                    tasks.push(TaskRequest::download(
+                    let relative = safe_relative_path(&remote.path)?;
+                    let url = remote.url.clone().ok_or_else(|| {
+                        Error::MSCore(modsync_core::error::Error::Validation(format!(
+                            "mod {} has no download URL",
+                            remote.path
+                        )))
+                    })?;
+                    tasks.push(TaskRequest::download_verified(
                         format!("下载{}", remote.path.clone()),
-                        remote.url.clone().unwrap(),
-                        format!("{}/mods/{}", getdotminecraft(), remote.path),
+                        url,
+                        Path::new(&getdotminecraft())
+                            .join("mods")
+                            .join(relative)
+                            .to_string_lossy()
+                            .to_string(),
+                        Some(remote.md5.clone()),
                     ));
                 }
             }
@@ -209,16 +252,30 @@ async fn apply_diff(
                 if let Some(local) = &diff.local {
                     if backup {
                         debug!("Adding backup/delete task for: {}", local.path);
+                        let relative = safe_relative_path(&local.path)?;
                         tasks.push(TaskRequest::rename(
                             format!("删除{}", local.path),
-                            format!("{}/mods/{}", getdotminecraft(), local.path),
-                            format!("{}/bakmods/{}", getdotminecraft(), local.path),
+                            Path::new(&getdotminecraft())
+                                .join("mods")
+                                .join(relative)
+                                .to_string_lossy()
+                                .to_string(),
+                            Path::new(&getdotminecraft())
+                                .join("bakmods")
+                                .join(relative)
+                                .to_string_lossy()
+                                .to_string(),
                         ));
                     } else {
                         debug!("Adding delete task for: {}", local.path);
+                        let relative = safe_relative_path(&local.path)?;
                         tasks.push(TaskRequest::delete(
                             format!("删除{}", local.path),
-                            format!("{}/mods/{}", getdotminecraft(), local.path),
+                            Path::new(&getdotminecraft())
+                                .join("mods")
+                                .join(relative)
+                                .to_string_lossy()
+                                .to_string(),
                         ));
                     }
                 }
@@ -227,10 +284,10 @@ async fn apply_diff(
     }
 
     info!("Submitting {} tasks", tasks.len());
-    summit_task(state.clone(), tasks).await?;
+    let mut summary = summit_task(state.clone(), tasks).await?;
 
     // unzip configpack
-    if sync_config_pack {
+    if sync_config_pack && summary.failed == 0 {
         info!("Unzipping config pack");
         let unziptask = TaskRequest::unzip(
             "Process ConfigPack".to_string(),
@@ -238,11 +295,16 @@ async fn apply_diff(
             getdotminecraft(),
         );
 
-        summit_task(state.clone(), vec![unziptask]).await?;
+        let unzip_summary = summit_task(state.clone(), vec![unziptask]).await?;
+        summary.succeeded += unzip_summary.succeeded;
+        summary.failed += unzip_summary.failed;
+        summary.tasks.extend(unzip_summary.tasks);
+    } else if sync_config_pack {
+        warn!("Skipping config pack extraction because a prerequisite task failed");
     }
 
     info!("Diff application finished");
-    Ok(())
+    Ok(summary)
 }
 
 #[tauri::command]
@@ -253,14 +315,22 @@ async fn is_running(state: State<'_, AppRuntime>) -> Result<bool, Error> {
 }
 
 #[tauri::command]
-async fn summit_task(state: State<'_, AppRuntime>, tasks: Vec<TaskRequest>) -> Result<(), Error> {
+async fn summit_task(
+    state: State<'_, AppRuntime>,
+    tasks: Vec<TaskRequest>,
+) -> Result<TaskRunSummary, Error> {
     if is_running(state.clone()).await? {
         return Err(Error::AlreadyRunning);
     }
 
     info!("init taskmanager now");
     // init TaskManager and run tasks
-    let mut taskmanager = TaskManager::new(20);
+    let max_concurrent = std::env::var("MODSYNC_MAX_CONCURRENT")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(20);
+    let mut taskmanager = TaskManager::new(max_concurrent);
     let running_task = taskmanager.get_vec_task_status().await;
     {
         let mut state = state.lock().await;
@@ -269,22 +339,21 @@ async fn summit_task(state: State<'_, AppRuntime>, tasks: Vec<TaskRequest>) -> R
     }
 
     // Post: set is_running to false after tasks complete
-    if let Err(e) = taskmanager.run(tasks).await {
-        error!("Task execution failed: {:?}", e);
-        return Err(Error::Err);
-    }
+    let result = taskmanager.run(tasks).await;
 
     let state = state.lock().await;
     *state.is_running.lock().await = false;
-    Ok(())
+    match result {
+        Ok(summary) => Ok(summary),
+        Err(error) => {
+            error!("Task execution failed: {:?}", error);
+            Err(Error::MSCore(error))
+        }
+    }
 }
 
 #[tauri::command]
 async fn getall_task(state: State<'_, AppRuntime>) -> Result<Vec<TaskStatus>, Error> {
-    if !is_running(state.clone()).await? {
-        return Err(Error::NotRunning);
-    }
-
     let running_task: Arc<Mutex<Vec<TaskStatus>>>;
     {
         let state = state.lock().await;
