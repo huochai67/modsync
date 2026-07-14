@@ -1,15 +1,12 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-use std::{
-    path::{Component, Path},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use log::{debug, error, info, warn};
 use modsync_core::{
-    msclient::{DiffType, MODDiff, MSClient, MSClientBuilder},
+    msclient::{MODDiff, MSClient, MSClientBuilder},
     msconfig::{MSConfig, ReleaseInfo},
-    msmod::MSMOD,
     mstaskmanager::{TaskManager, TaskRequest, TaskRunSummary, TaskStatus},
+    syncplan::SyncPaths,
 };
 use serde::Serialize;
 use tauri::{Manager, State};
@@ -26,27 +23,6 @@ fn getdotminecraft() -> String {
     );
     let _ = std::fs::create_dir_all(pwd.clone());
     return pwd;
-}
-
-fn safe_relative_path(value: &str) -> Result<&Path, Error> {
-    let path = Path::new(value);
-    if path.is_absolute()
-        || path.components().any(|part| {
-            matches!(
-                part,
-                Component::ParentDir | Component::RootDir | Component::Prefix(_)
-            )
-        })
-    {
-        return Err(Error::MSCore(modsync_core::error::Error::Validation(
-            format!("unsafe mod path: {value}"),
-        )));
-    }
-    Ok(path)
-}
-
-fn get_configpack_path() -> String {
-    format!("{}/configpack.zip", getdotminecraft())
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -167,6 +143,7 @@ async fn apply_diff(
         sync_config_pack
     );
     let mut tasks: Vec<TaskRequest> = vec![];
+    let paths = SyncPaths::new(getdotminecraft());
 
     if sync_config_pack {
         let configpack_opt = {
@@ -184,104 +161,21 @@ async fn apply_diff(
             }
         };
 
-        let configpack_str = get_configpack_path();
-        let configpack_path = Path::new(&configpack_str);
-        let mut downloadconfigpack = true;
-
-        debug!("检查本地ConfigPack at {:?}", configpack_path);
-        // Check local configpack
-        if configpack_path.exists() {
-            let local = MSMOD::from_file(configpack_path, "", None)?;
-            debug!("本地 MD5: {:?}, 远程 MD5: {:?}", local.md5, configpack.md5);
-            if local.md5 == configpack.md5 {
-                downloadconfigpack = false
-            }
-        }
-
-        info!("需要下载ConfigPack: {}", downloadconfigpack);
-        if downloadconfigpack {
-            let url = configpack.url.ok_or_else(|| {
-                Error::MSCore(modsync_core::error::Error::Validation(
-                    "config pack has no download URL".to_string(),
-                ))
-            })?;
-            tasks.push(TaskRequest::download_verified(
-                "Download ConfigPack".to_string(),
-                url,
-                configpack_str,
-                Some(configpack.md5),
-            ));
+        if let Some(task) = paths.plan_configpack_download(&configpack)? {
+            info!("Config pack download is required");
+            tasks.push(task);
         }
     }
 
     // Check backup dirctory
     if backup {
-        let strpath = format!("{}/bakmods", getdotminecraft());
-        let backupdir = Path::new(&strpath);
+        let backupdir = paths.root().join("bakmods");
         if !backupdir.exists() {
             info!("Creating backup directory at {:?}", backupdir);
-            tokio::fs::create_dir_all(backupdir).await?;
+            tokio::fs::create_dir_all(&backupdir).await?;
         }
     }
-
-    for diff in diffs.iter() {
-        match diff.difftype {
-            DiffType::NEWED | DiffType::MODIFIED => {
-                if let Some(remote) = &diff.remote {
-                    debug!("Adding download task for: {}", remote.path);
-                    let relative = safe_relative_path(&remote.path)?;
-                    let url = remote.url.clone().ok_or_else(|| {
-                        Error::MSCore(modsync_core::error::Error::Validation(format!(
-                            "mod {} has no download URL",
-                            remote.path
-                        )))
-                    })?;
-                    tasks.push(TaskRequest::download_verified(
-                        format!("下载{}", remote.path.clone()),
-                        url,
-                        Path::new(&getdotminecraft())
-                            .join("mods")
-                            .join(relative)
-                            .to_string_lossy()
-                            .to_string(),
-                        Some(remote.md5.clone()),
-                    ));
-                }
-            }
-            DiffType::DELETED => {
-                if let Some(local) = &diff.local {
-                    if backup {
-                        debug!("Adding backup/delete task for: {}", local.path);
-                        let relative = safe_relative_path(&local.path)?;
-                        tasks.push(TaskRequest::rename(
-                            format!("删除{}", local.path),
-                            Path::new(&getdotminecraft())
-                                .join("mods")
-                                .join(relative)
-                                .to_string_lossy()
-                                .to_string(),
-                            Path::new(&getdotminecraft())
-                                .join("bakmods")
-                                .join(relative)
-                                .to_string_lossy()
-                                .to_string(),
-                        ));
-                    } else {
-                        debug!("Adding delete task for: {}", local.path);
-                        let relative = safe_relative_path(&local.path)?;
-                        tasks.push(TaskRequest::delete(
-                            format!("删除{}", local.path),
-                            Path::new(&getdotminecraft())
-                                .join("mods")
-                                .join(relative)
-                                .to_string_lossy()
-                                .to_string(),
-                        ));
-                    }
-                }
-            }
-        }
-    }
+    tasks.extend(paths.plan_diffs(&diffs, backup)?);
 
     info!("Submitting {} tasks", tasks.len());
     let mut summary = summit_task(state.clone(), tasks).await?;
@@ -289,11 +183,7 @@ async fn apply_diff(
     // unzip configpack
     if sync_config_pack && summary.failed == 0 {
         info!("Unzipping config pack");
-        let unziptask = TaskRequest::unzip(
-            "Process ConfigPack".to_string(),
-            get_configpack_path(),
-            getdotminecraft(),
-        );
+        let unziptask = paths.configpack_extract_task();
 
         let unzip_summary = summit_task(state.clone(), vec![unziptask]).await?;
         summary.succeeded += unzip_summary.succeeded;
