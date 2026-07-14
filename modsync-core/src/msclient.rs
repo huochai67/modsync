@@ -2,7 +2,10 @@ use crate::{
     error::Error,
     msconfig::{MetaData, ReleaseInfo},
 };
-use std::sync::Arc;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use crate::{
     msconfig::MSConfig,
@@ -54,12 +57,12 @@ pub struct MSClient {
 }
 
 pub struct MSClientRef {
-    path: Option<String>,
+    path: PathBuf,
     msconfig: MSConfig,
 }
 
 struct ClientBuilderConfig {
-    path: Option<String>,
+    path: Option<PathBuf>,
     remoteconfig: Option<MSConfig>,
 }
 pub struct MSClientBuilder {
@@ -81,26 +84,27 @@ impl MSClientBuilder {
         self
     }
 
-    pub fn path(mut self, path: String) -> MSClientBuilder {
-        self.config.path = Some(path);
+    pub fn path(mut self, path: impl Into<PathBuf>) -> MSClientBuilder {
+        self.config.path = Some(path.into());
         self
     }
 
     pub fn build(self) -> Result<MSClient, Error> {
-        match self.config.remoteconfig {
-            Some(config) => Ok(MSClient {
+        match (self.config.remoteconfig, self.config.path) {
+            (Some(config), Some(path)) => Ok(MSClient {
                 inner: Arc::new(MSClientRef {
-                    path: self.config.path,
+                    path,
                     msconfig: config,
                 }),
             }),
-            None => Err(Error::BuilderNoMSConfig),
+            (None, _) => Err(Error::BuilderNoMSConfig),
+            (_, None) => Err(Error::MSClientNoPath),
         }
     }
 }
 impl MSClient {
-    pub fn get_path(&self) -> Option<String> {
-        self.inner.as_ref().path.clone()
+    pub fn get_path(&self) -> &Path {
+        &self.inner.path
     }
 
     pub fn get_config(&self) -> MSConfig {
@@ -163,7 +167,7 @@ impl MSClient {
         match self.get_serverdat() {
             Some(serverdat_url) => Ok(http_download(
                 serverdat_url.as_str(),
-                format!("{}/servers.dat", self.get_path().unwrap()).as_str(),
+                &self.get_path().join("servers.dat").to_string_lossy(),
             )
             .await?),
             None => Err(Error::MSConfigNoServerDatUrl),
@@ -173,7 +177,7 @@ impl MSClient {
         match self.get_options() {
             Some(option_url) => Ok(http_download(
                 option_url.as_str(),
-                format!("{}/options.txt", self.get_path().unwrap()).as_str(),
+                &self.get_path().join("options.txt").to_string_lossy(),
             )
             .await?),
             None => Err(Error::MSConfigNoOptionsUrl),
@@ -183,7 +187,7 @@ impl MSClient {
         match self.get_launcher_hmcl() {
             Some(hmcl_url) => Ok(http_download(
                 hmcl_url.as_str(),
-                format!("{}/../HMCL.exe", self.get_path().unwrap()).as_str(),
+                &self.launcher_path("HMCL.exe")?.to_string_lossy(),
             )
             .await?),
             None => Err(Error::MSConfigNoHMCLUrl),
@@ -193,7 +197,7 @@ impl MSClient {
         match self.get_launcher_pclce() {
             Some(pclce_url) => Ok(http_download(
                 pclce_url.as_str(),
-                format!("{}/../PCL-CE.exe", self.get_path().unwrap()).as_str(),
+                &self.launcher_path("PCL-CE.exe")?.to_string_lossy(),
             )
             .await?),
             None => Err(Error::MSConfigNoPCLCEUrl),
@@ -201,9 +205,16 @@ impl MSClient {
     }
 
     pub fn get_modlist_local(&self) -> Result<Vec<MSMOD>, Error> {
-        let modspath = format!("{}/mods", self.get_path().unwrap().as_str());
-        let _ = std::fs::create_dir_all(modspath.as_str());
-        MSMOD::from_directory(modspath.as_str(), None)
+        let modspath = self.get_path().join("mods");
+        std::fs::create_dir_all(&modspath)?;
+        MSMOD::from_directory(&modspath.to_string_lossy(), None)
+    }
+
+    fn launcher_path(&self, filename: &str) -> Result<PathBuf, Error> {
+        self.get_path()
+            .parent()
+            .map(|parent| parent.join(filename))
+            .ok_or(Error::MSClientNoPath)
     }
 
     pub fn get_difflist_with(
