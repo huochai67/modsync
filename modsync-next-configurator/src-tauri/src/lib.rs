@@ -232,6 +232,11 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
     if !(serverurl.starts_with("https://") || serverurl.starts_with("http://")) {
         return Err("Server URL 必须是 http:// 或 https:// 地址".into());
     }
+    let base_url = if serverurl.ends_with('/') {
+        serverurl.to_string()
+    } else {
+        format!("{serverurl}/")
+    };
     let root = data_root();
     let data_dir = root.join("data");
     let mods_dir = data_dir.join("mods");
@@ -242,7 +247,7 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
         return Err("无mod文件夹".into());
     }
 
-    let modlist_url = Some(format!("{}modslist.json", serverurl));
+    let modlist_url = Some(format!("{}modslist.json", base_url));
     let old_modlist_path = root.join("modslist.json");
     let old_modlist = match MSMOD::from_jsonfile(&old_modlist_path.to_string_lossy()) {
         Ok(old_modlist) => old_modlist,
@@ -250,7 +255,7 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
     };
     let vecmsmod = match MSMOD::from_directory(
         &mods_dir.to_string_lossy(),
-        Some(format!("{}data/mods/", serverurl).as_str()),
+        Some(format!("{}data/mods/", base_url).as_str()),
     ) {
         Ok(vecmsmod) => vecmsmod,
         Err(err) => {
@@ -259,13 +264,6 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
     };
     if vecmsmod.is_empty() {
         return Err("没有可用的mod".into());
-    }
-
-    if let Err(err) = writetofile(
-        &old_modlist_path.to_string_lossy(),
-        serde_json::to_string(&vecmsmod).unwrap().as_bytes(),
-    ) {
-        return Err(err.to_string());
     }
 
     // Build logs
@@ -281,11 +279,8 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
         if size == 0 {
             // todo!("没有更新内容");
         } else {
-            if let Ok(newlogs) =
-                update_and_get_logs(releaseinfo, &release_log_path.to_string_lossy())
-            {
-                logs = newlogs;
-            };
+            logs = update_and_get_logs(releaseinfo, &release_log_path.to_string_lossy())
+                .map_err(|err| err.to_string())?;
         }
     }
     if let Err(err) = writetofile(
@@ -301,16 +296,16 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
     let mut launcher_hmcl_url = None;
     let mut launcher_pclce_url = None;
     if data_dir.join("options.txt").exists() {
-        option_url = Some(format!("{}data/options.txt", serverurl));
+        option_url = Some(format!("{}data/options.txt", base_url));
     }
     if data_dir.join("servers.dat").exists() {
-        serverlist_url = Some(format!("{}data/servers.dat", serverurl));
+        serverlist_url = Some(format!("{}data/servers.dat", base_url));
     }
     if data_dir.join("hmcl.exe").exists() {
-        launcher_hmcl_url = Some(format!("{}data/hmcl.exe", serverurl));
+        launcher_hmcl_url = Some(format!("{}data/hmcl.exe", base_url));
     }
     if data_dir.join("pclce.exe").exists() {
-        launcher_pclce_url = Some(format!("{}data/pclce.exe", serverurl));
+        launcher_pclce_url = Some(format!("{}data/pclce.exe", base_url));
     }
     let config_zip = data_dir.join("config.zip");
     let configpack = match config_zip.exists() {
@@ -318,7 +313,7 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
             MSMOD::from_file(
                 &config_zip,
                 &data_dir.to_string_lossy(),
-                Some(format!("{}data/", serverurl).as_str()),
+                Some(format!("{}data/", base_url).as_str()),
             )
             .map_err(|err| err.to_string())?,
         ),
@@ -334,7 +329,7 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
 
     // Build Config
     let config = MSConfig::new(
-        serverurl.to_string(),
+        base_url,
         modlist_url,
         logs,
         Some(metadata),
