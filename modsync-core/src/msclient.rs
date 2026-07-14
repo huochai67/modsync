@@ -207,81 +207,67 @@ impl MSClient {
     }
 
     pub fn get_difflist_with(
-        locallist: &Vec<MSMOD>,
-        remotelist: &Vec<MSMOD>,
-        necessarylist: Option<&Vec<MSMOD>>,
+        locallist: &[MSMOD],
+        remotelist: &[MSMOD],
+        necessarylist: Option<&[MSMOD]>,
     ) -> Result<Vec<MODDiff>, Error> {
-        let mut ret: Vec<MODDiff> = vec![];
-        let mut copy_locallist = locallist.clone();
-        for remotemod_ in remotelist.iter() {
-            let mut ok = false;
-            for localmod in copy_locallist.iter() {
-                //优先通过md5校验
-                if localmod.md5 == remotemod_.md5 {
-                    ok = true;
-                    break;
-                }
+        let mut diffs = Vec::new();
+        // An index is consumed exactly once. This prevents a modified file from
+        // subsequently appearing as a deletion in the same sync plan.
+        let mut matched = vec![false; locallist.len()];
 
-                //其次通过modid校验
-                if remotemod_.modid.is_some() {
-                    if localmod.modid == remotemod_.modid {
-                        ret.push(MODDiff::new(
+        for remote in remotelist {
+            let find_unmatched = |predicate: &dyn Fn(&MSMOD) -> bool| {
+                locallist
+                    .iter()
+                    .enumerate()
+                    .find(|(index, local)| !matched[*index] && predicate(local))
+                    .map(|(index, _)| index)
+            };
+
+            let local_index = find_unmatched(&|local| local.md5 == remote.md5)
+                .or_else(|| {
+                    remote.modid.as_ref().and_then(|modid| {
+                        find_unmatched(&|local| local.modid.as_ref() == Some(modid))
+                    })
+                })
+                .or_else(|| find_unmatched(&|local| local.path == remote.path));
+
+            match local_index {
+                Some(index) => {
+                    matched[index] = true;
+                    if locallist[index].md5 != remote.md5 {
+                        diffs.push(MODDiff::new(
                             Kind::MOD,
-                            remotemod_.path.clone(),
-                            Some(localmod.clone()),
-                            Some(remotemod_.clone()),
+                            remote.path.clone(),
+                            Some(locallist[index].clone()),
+                            Some(remote.clone()),
                         ));
-                        ok = true;
-                        break;
                     }
                 }
-                //最后通过路径校验
-                if localmod.path == remotemod_.path {
-                    ret.push(MODDiff::new(
-                        Kind::MOD,
-                        remotemod_.path.clone(),
-                        Some(localmod.clone()),
-                        Some(remotemod_.clone()),
-                    ));
-                    ok = true;
-                    break;
-                }
-            }
-            if !ok {
-                ret.push(MODDiff::new(
+                None => diffs.push(MODDiff::new(
                     Kind::MOD,
-                    remotemod_.path.clone(),
+                    remote.path.clone(),
                     None,
-                    Some(remotemod_.clone()),
-                ))
-            } else {
-                //删除已经匹配的本地mod，减少后续循环开销
-                copy_locallist.retain(|x| x.md5 != remotemod_.md5);
+                    Some(remote.clone()),
+                )),
             }
         }
 
-        for localmod in copy_locallist.iter() {
-            let mut ok = false;
-            if let Some(necessarylist) = necessarylist {
-                for necessary in necessarylist.iter() {
-                    if localmod.md5 == necessary.md5 {
-                        ok = true;
-                        break;
-                    }
-                }
-            }
-
-            if !ok {
-                ret.push(MODDiff::new(
+        for (index, local) in locallist.iter().enumerate() {
+            let required =
+                necessarylist.is_some_and(|items| items.iter().any(|item| item.md5 == local.md5));
+            if !matched[index] && !required {
+                diffs.push(MODDiff::new(
                     Kind::MOD,
-                    localmod.path.clone(),
-                    Some(localmod.clone()),
+                    local.path.clone(),
+                    Some(local.clone()),
                     None,
                 ));
             }
         }
 
-        Ok(ret)
+        Ok(diffs)
     }
 
     pub async fn get_difflist(&self) -> Result<Vec<MODDiff>, Error> {
@@ -379,8 +365,7 @@ mod tests {
         ];
         let diffs = MSClient::get_difflist_with(&local, &remote, None).unwrap();
 
-        // A changed checksum is represented by a modification and its old local entry.
-        assert_eq!(diffs.len(), 4);
+        assert_eq!(diffs.len(), 3);
         assert!(diffs
             .iter()
             .any(|diff| diff.name == "added.jar" && matches!(diff.difftype, DiffType::NEWED)));
@@ -390,7 +375,7 @@ mod tests {
         assert!(diffs
             .iter()
             .any(|diff| diff.name == "changed.jar" && matches!(diff.difftype, DiffType::MODIFIED)));
-        assert!(diffs
+        assert!(!diffs
             .iter()
             .any(|diff| diff.name == "changed.jar" && matches!(diff.difftype, DiffType::DELETED)));
     }
