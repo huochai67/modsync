@@ -4,6 +4,6 @@
   "packageManager": "pnpm@10.14.0",
   "scripts": {
     "build": "pnpm --filter @modsync/contracts build && pnpm --filter modsync-next build && pnpm --filter modsync-next-configurator build",
-    "check": "pnpm --filter @modsync/contracts check && pnpm --filter modsync-next check && pnpm --filter modsync-next-configurator check"
+    "check": "pnpm --filter @modsync/contracts check && pnpm --filter modsync-next exec tsc --noEmit && pnpm --filter modsync-next-configurator exec tsc --noEmit"
   }
 }
