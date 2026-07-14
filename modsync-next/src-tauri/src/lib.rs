@@ -73,38 +73,30 @@ struct AppRuntimeInner {
     is_running: Arc<Mutex<bool>>,
     running_tasks: Arc<Mutex<Vec<TaskStatus>>>,
 }
-impl AppRuntimeInner {
-    async fn try_get_client(&mut self) -> Result<MSClient, Error> {
-        match &self.client {
-            None => {
-                info!("Client not initialized, creating new client");
-                let client = MSClientBuilder::new()
-                    .msconfig(
-                        // MSConfig::get_remote_config("http://127.0.0.1:8086/info.json").await?,
-                        MSConfig::get_remote_config(
-                            &std::env::var("MODSYNC_CONFIG_URL").unwrap_or_else(|_| {
-                                "https://cn.ms.nicefish4520.com/info.json".to_string()
-                            }),
-                        )
-                        .await?,
-                    )
-                    .path(getdotminecraft())
-                    .build()?;
-                info!("Client created successfully");
-                self.client = Some(client.clone());
-                Ok(client)
-            }
-            Some(client) => Ok(client.clone()),
-        }
-    }
-}
 type AppRuntime = Mutex<AppRuntimeInner>;
+
+async fn get_client(state: &AppRuntime) -> Result<MSClient, Error> {
+    if let Some(client) = state.lock().await.client.clone() {
+        return Ok(client);
+    }
+
+    // Never hold the app-state lock while waiting for the remote configuration.
+    info!("Client not initialized, creating new client");
+    let config_url = std::env::var("MODSYNC_CONFIG_URL")
+        .unwrap_or_else(|_| "https://cn.ms.nicefish4520.com/info.json".to_string());
+    let client = MSClientBuilder::new()
+        .msconfig(MSConfig::get_remote_config(&config_url).await?)
+        .path(getdotminecraft())
+        .build()?;
+
+    let mut runtime = state.lock().await;
+    Ok(runtime.client.get_or_insert_with(|| client.clone()).clone())
+}
 
 #[tauri::command]
 async fn download_utility(state: State<'_, AppRuntime>, utility: &str) -> Result<(), Error> {
     info!("Downloading utility: {}", utility);
-    let mut state = state.lock().await;
-    let client = state.try_get_client().await?;
+    let client = get_client(&state).await?;
     match utility {
         "hmcl" => client.sync_hcml().await?,
         "pclce" => client.sync_pclce().await?,
@@ -122,8 +114,7 @@ async fn download_utility(state: State<'_, AppRuntime>, utility: &str) -> Result
 #[tauri::command]
 async fn get_diff(state: State<'_, AppRuntime>) -> Result<Vec<MODDiff>, Error> {
     debug!("Getting diff list...");
-    let mut state = state.lock().await;
-    let client = state.try_get_client().await?;
+    let client = get_client(&state).await?;
     let diffs = client.get_difflist().await?;
     debug!("Found {} diffs", diffs.len());
     Ok(diffs)
@@ -146,11 +137,7 @@ async fn apply_diff(
     let paths = SyncPaths::new(getdotminecraft());
 
     if sync_config_pack {
-        let configpack_opt = {
-            let mut state = state.lock().await;
-            let client = state.try_get_client().await?;
-            client.get_configpack()
-        };
+        let configpack_opt = get_client(&state).await?.get_configpack();
         let configpack = match configpack_opt {
             Some(url) => url,
             None => {
@@ -258,13 +245,13 @@ build_info::build_info!(fn build_info);
 async fn init_runtime(state: State<'_, AppRuntime>) -> Result<(), Error> {
     info!("Initializing runtime...");
 
-    let mut state = state.lock().await;
-    let client = state.try_get_client().await?;
+    let client = get_client(&state).await?;
 
     let config = client.get_config();
     let release_info = config.release_info;
 
-    state.runtime_info = Some(RuntimeInfo {
+    let mut runtime = state.lock().await;
+    runtime.runtime_info = Some(RuntimeInfo {
         title: client.get_title(),
         version: format!("v{}", env!("CARGO_PKG_VERSION")),
         buildinfo: {
@@ -288,7 +275,7 @@ async fn init_runtime(state: State<'_, AppRuntime>) -> Result<(), Error> {
 
     info!(
         "Runtime initialized: {}",
-        state.runtime_info.as_ref().unwrap().title
+        runtime.runtime_info.as_ref().unwrap().title
     );
 
     Ok(())
