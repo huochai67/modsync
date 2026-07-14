@@ -196,10 +196,6 @@ async fn summit_task(
     state: State<'_, AppRuntime>,
     tasks: Vec<TaskRequest>,
 ) -> Result<TaskRunSummary, Error> {
-    if is_running(state.clone()).await? {
-        return Err(Error::AlreadyRunning);
-    }
-
     info!("init taskmanager now");
     // init TaskManager and run tasks
     let max_concurrent = std::env::var("MODSYNC_MAX_CONCURRENT")
@@ -211,8 +207,13 @@ async fn summit_task(
     let running_task = taskmanager.get_vec_task_status().await;
     {
         let mut state = state.lock().await;
+        let running_flag = state.is_running.clone();
+        let mut is_running = running_flag.lock().await;
+        if *is_running {
+            return Err(Error::AlreadyRunning);
+        }
         state.running_tasks = running_task;
-        *state.is_running.lock().await = true;
+        *is_running = true;
     }
 
     // Post: set is_running to false after tasks complete
