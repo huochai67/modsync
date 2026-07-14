@@ -7,7 +7,7 @@ import HistoryItem from '@/components/HistoryItem';
 
 const App: React.FC = () => {
   const [form, setForm] = useState<FormState>({ version: '', title: '', changelog: '', serverUrl: '', adds: [], subs: [], mods: [] });
-  const [config, setConfig] = useState<MSConfig>({ base_url: '', release_info: [], title: '' });
+  const [config, setConfig] = useState<MSConfig>({ schema_version: 1, base_url: '', release_info: [], title: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const history = config.release_info;
   const fetchConfig = useCallback(async () => {
