@@ -74,7 +74,7 @@ pub fn update_and_get_logs(new_log: ReleaseInfo, path: &str) -> std::io::Result<
     };
     updated.push_str(&new_entry);
     writetofile(&path.to_string_lossy(), updated.as_bytes())
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))?;
+        .map_err(|err| std::io::Error::other(err.to_string()))?;
 
     // 3. 返回所有日志
     logs.push(new_log);
@@ -174,15 +174,15 @@ pub fn read_all_logs(path: &Path) -> std::io::Result<Vec<ReleaseInfo>> {
 fn generate_releaseinfo(
     version: &str,
     changelog: &str,
-    modlist: &Vec<MSMOD>,
-    old_modlist: &Vec<MSMOD>,
+    modlist: &[MSMOD],
+    old_modlist: &[MSMOD],
 ) -> ReleaseInfo {
     let mut size: isize = 0;
     let mut adds = vec![];
     let mut subs = vec![];
     let mut mods = vec![];
 
-    if let Ok(difflist) = MSClient::get_difflist_with(&old_modlist, &modlist, None) {
+    if let Ok(difflist) = MSClient::get_difflist_with(old_modlist, modlist, None) {
         for diff in difflist {
             match (diff.local.is_some(), diff.remote.is_some()) {
                 (false, true) => {
@@ -213,7 +213,7 @@ fn generate_releaseinfo(
         }
     }
 
-    return ReleaseInfo {
+    ReleaseInfo {
         version: version.to_string(),
         date: chrono::Local::now().format("%Y-%m-%d").to_string(),
         changelog: changelog.to_string(),
@@ -221,7 +221,7 @@ fn generate_releaseinfo(
         adds: Some(adds),
         subs: Some(subs),
         mods: Some(mods),
-    };
+    }
 }
 
 #[tauri::command]
@@ -249,10 +249,7 @@ fn generate(version: &str, changelog: &str, title: &str, serverurl: &str) -> Res
 
     let modlist_url = Some(format!("{}modslist.json", base_url));
     let old_modlist_path = root.join("modslist.json");
-    let old_modlist = match MSMOD::from_jsonfile(&old_modlist_path.to_string_lossy()) {
-        Ok(old_modlist) => old_modlist,
-        Err(_) => vec![],
-    };
+    let old_modlist = MSMOD::from_jsonfile(&old_modlist_path.to_string_lossy()).unwrap_or_default();
     let vecmsmod = match MSMOD::from_directory(
         &mods_dir.to_string_lossy(),
         Some(format!("{}data/mods/", base_url).as_str()),
@@ -354,7 +351,7 @@ fn get_config() -> Option<MSConfig> {
     if let Ok(config) = MSConfig::from_file(&path.to_string_lossy()) {
         return Some(config);
     }
-    return None;
+    None
 }
 
 #[tauri::command]
