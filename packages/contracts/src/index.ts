@@ -5,6 +5,8 @@
  * `schema_version` as version 1 for backwards compatibility.
  */
 export const CONFIG_SCHEMA_VERSION = 1 as const;
+export const SYNC_STATE_EVENT = "modsync://sync-state" as const;
+export const TASK_PROGRESS_EVENT = "modsync://task-progress" as const;
 
 export interface MSMOD {
   md5: string;

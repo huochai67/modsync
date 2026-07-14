@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Window } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "@heroui/react";
@@ -19,6 +20,7 @@ import { RuntimeContext } from "@/runtimecontext";
 import { MOCK_RUNTIME_INFO } from "@/mockData";
 
 import { SiQq } from "@icons-pack/react-simple-icons";
+import { SYNC_STATE_EVENT } from "@modsync/contracts";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -52,15 +54,33 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const [is_syncing, setIsSyncing] = React.useState<boolean>(false);
   useEffect(() => {
-    const interval = window.setInterval(async () => {
+    let disposed = false;
+    let unlisten: UnlistenFn | undefined;
+
+    const subscribe = async () => {
+      const stopListening = await listen<boolean>(SYNC_STATE_EVENT, (event) => {
+        if (!disposed) setIsSyncing(event.payload);
+      });
+      if (disposed) {
+        stopListening();
+        return;
+      }
+      unlisten = stopListening;
       try {
-        let is_syncing = await invoke<boolean>("is_running");
-        setIsSyncing(is_syncing);
+        const isSyncing = await invoke<boolean>("is_running");
+        if (!disposed) setIsSyncing(isSyncing);
       } catch (error) {
         console.error("Failed to fetch task state", error);
       }
-    }, 1000);
-    return () => window.clearInterval(interval);
+    };
+
+    subscribe().catch((error) => {
+      console.error("Failed to subscribe to sync state", error);
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, []);
 
   const navigate = useNavigate();

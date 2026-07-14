@@ -9,8 +9,11 @@ use modsync_core::{
     syncplan::SyncPaths,
 };
 use serde::Serialize;
-use tauri::{Manager, State};
-use tokio::sync::Mutex;
+use tauri::{AppHandle, Emitter, Manager, State};
+use tokio::sync::{mpsc, Mutex};
+
+const SYNC_STATE_EVENT: &str = "modsync://sync-state";
+const TASK_PROGRESS_EVENT: &str = "modsync://task-progress";
 
 fn getdotminecraft() -> String {
     if let Ok(path) = std::env::var("MODSYNC_MINECRAFT_DIR") {
@@ -22,7 +25,7 @@ fn getdotminecraft() -> String {
         std::env::current_dir().unwrap().to_str().unwrap()
     );
     let _ = std::fs::create_dir_all(pwd.clone());
-    return pwd;
+    pwd
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -31,10 +34,10 @@ enum Error {
     MSCore(#[from] modsync_core::error::Error),
 
     #[error(transparent)]
-    IOError(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
 
     #[error(transparent)]
-    ZIPError(#[from] zip::result::ZipError),
+    Zip(#[from] zip::result::ZipError),
 
     #[error("Already running")]
     AlreadyRunning,
@@ -123,6 +126,7 @@ async fn get_diff(state: State<'_, AppRuntime>) -> Result<Vec<MODDiff>, Error> {
 #[tauri::command]
 async fn apply_diff(
     state: State<'_, AppRuntime>,
+    app: AppHandle,
     diffs: Vec<MODDiff>,
     backup: bool,
     sync_config_pack: bool,
@@ -165,14 +169,14 @@ async fn apply_diff(
     tasks.extend(paths.plan_diffs(&diffs, backup)?);
 
     info!("Submitting {} tasks", tasks.len());
-    let mut summary = summit_task(state.clone(), tasks).await?;
+    let mut summary = summit_task(state.clone(), app.clone(), tasks).await?;
 
     // unzip configpack
     if sync_config_pack && summary.failed == 0 {
         info!("Unzipping config pack");
         let unziptask = paths.configpack_extract_task();
 
-        let unzip_summary = summit_task(state.clone(), vec![unziptask]).await?;
+        let unzip_summary = summit_task(state.clone(), app, vec![unziptask]).await?;
         summary.succeeded += unzip_summary.succeeded;
         summary.failed += unzip_summary.failed;
         summary.tasks.extend(unzip_summary.tasks);
@@ -187,13 +191,14 @@ async fn apply_diff(
 #[tauri::command]
 async fn is_running(state: State<'_, AppRuntime>) -> Result<bool, Error> {
     let state = state.lock().await;
-    let is_running = state.is_running.lock().await.clone();
+    let is_running = *state.is_running.lock().await;
     Ok(is_running)
 }
 
 #[tauri::command]
 async fn summit_task(
     state: State<'_, AppRuntime>,
+    app: AppHandle,
     tasks: Vec<TaskRequest>,
 ) -> Result<TaskRunSummary, Error> {
     info!("init taskmanager now");
@@ -215,12 +220,33 @@ async fn summit_task(
         state.running_tasks = running_task;
         *is_running = true;
     }
+    if let Err(error) = app.emit(SYNC_STATE_EVENT, true) {
+        warn!("Failed to publish sync start event: {error}");
+    }
+
+    let (status_tx, mut status_rx) = mpsc::channel(100);
+    let event_app = app.clone();
+    let reporter = tokio::spawn(async move {
+        while let Some(status) = status_rx.recv().await {
+            if let Err(error) = event_app.emit(TASK_PROGRESS_EVENT, status) {
+                warn!("Failed to publish task progress event: {error}");
+            }
+        }
+    });
 
     // Post: set is_running to false after tasks complete
-    let result = taskmanager.run(tasks).await;
+    let result = taskmanager
+        .run_with_status_updates(tasks, Some(status_tx))
+        .await;
+    if let Err(error) = reporter.await {
+        warn!("Task progress reporter stopped unexpectedly: {error}");
+    }
 
     let state = state.lock().await;
     *state.is_running.lock().await = false;
+    if let Err(error) = app.emit(SYNC_STATE_EVENT, false) {
+        warn!("Failed to publish sync finish event: {error}");
+    }
     match result {
         Ok(summary) => Ok(summary),
         Err(error) => {

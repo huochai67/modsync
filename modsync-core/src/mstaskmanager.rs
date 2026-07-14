@@ -142,15 +142,26 @@ impl TaskManager {
     }
 
     pub async fn run(&mut self, targets: Vec<TaskRequest>) -> Result<TaskRunSummary, Error> {
+        self.run_with_status_updates(targets, None).await
+    }
+
+    /// Runs tasks and publishes a complete status snapshot whenever a task changes.
+    /// The optional sender keeps UI transports out of the core task executor.
+    pub async fn run_with_status_updates(
+        &mut self,
+        targets: Vec<TaskRequest>,
+        status_tx: Option<mpsc::Sender<TaskStatus>>,
+    ) -> Result<TaskRunSummary, Error> {
         let (tx, mut rx) = mpsc::channel(100);
         let (job_tx, job_rx) = mpsc::unbounded_channel();
         let job_rx = Arc::new(Mutex::new(job_rx));
 
         for (i, task) in targets.into_iter().enumerate() {
-            self.vec_task_status
-                .lock()
-                .await
-                .push(TaskStatus::new(i, task.name.clone()));
+            let status = TaskStatus::new(i, task.name.clone());
+            self.vec_task_status.lock().await.push(status.clone());
+            if let Some(status_tx) = &status_tx {
+                let _ = status_tx.send(status).await;
+            }
             job_tx.send((i, task)).map_err(|_| Error::MSTaskMPSC)?;
         }
         drop(job_tx);
@@ -237,24 +248,28 @@ impl TaskManager {
 
         // 统一处理来自所有任务的消息
         while let Some(event) = rx.recv().await {
-            if let Some(task_info) = self
-                .vec_task_status
-                .lock()
-                .await
-                .iter_mut()
-                .find(|t| t.id == event.id)
-            {
-                task_info.status = event.event_type;
-                if let Some(download) = event.downloaded {
-                    task_info.downloaded_bytes = Some(download)
-                }
-                if let Some(total) = event.total {
-                    task_info.total_bytes = Some(total)
-                }
-                if let Some(error) = event.error_message {
-                    task_info.error = Some(error)
-                }
+            let updated = {
+                let mut statuses = self.vec_task_status.lock().await;
+                statuses
+                    .iter_mut()
+                    .find(|t| t.id == event.id)
+                    .map(|task_info| {
+                        task_info.status = event.event_type;
+                        if let Some(download) = event.downloaded {
+                            task_info.downloaded_bytes = Some(download)
+                        }
+                        if let Some(total) = event.total {
+                            task_info.total_bytes = Some(total)
+                        }
+                        if let Some(error) = event.error_message {
+                            task_info.error = Some(error)
+                        }
+                        task_info.clone()
+                    })
             };
+            if let (Some(status_tx), Some(status)) = (&status_tx, updated) {
+                let _ = status_tx.send(status).await;
+            }
         }
 
         for worker in workers {
@@ -297,5 +312,27 @@ mod tests {
         assert_eq!(summary.failed, 1);
         assert!(matches!(summary.tasks[0].status, TaskEventType::Error));
         assert!(summary.tasks[0].error.is_some());
+    }
+
+    #[tokio::test]
+    async fn task_status_updates_are_published() {
+        let mut manager = TaskManager::new(1);
+        let (status_tx, mut status_rx) = mpsc::channel(16);
+
+        manager
+            .run_with_status_updates(
+                vec![TaskRequest::delete(
+                    "missing".to_string(),
+                    "this-file-does-not-exist".to_string(),
+                )],
+                Some(status_tx),
+            )
+            .await
+            .expect("task manager should finish");
+
+        let statuses: Vec<_> = std::iter::from_fn(|| status_rx.try_recv().ok()).collect();
+        assert!(statuses
+            .iter()
+            .any(|status| matches!(status.status, TaskEventType::Error)));
     }
 }

@@ -1,27 +1,63 @@
 import React, { useEffect } from "react";
 import TaskProgress from "@/components/TaskProgress";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import { TaskStatus } from "@/types";
 import { ListChecks } from "lucide-react";
+import { SYNC_STATE_EVENT, TASK_PROGRESS_EVENT } from "@modsync/contracts";
 
 const TaskManager: React.FC = () => {
   const [task_status, setTaskStatus] = React.useState<Array<TaskStatus>>([]);
   useEffect(() => {
-    const interval = window.setInterval(async () => {
-      try {
-        // const is_running = await invoke<boolean>('is_running');
-        // if (!is_running) {
-        //     throw new Error("No task is running");
-        // }
-        let running_tasks = await invoke<TaskStatus[]>("getall_task");
-        setTaskStatus(running_tasks);
-      } catch (error) {
-        // alert("Failed to fetch TaskInfo: " + error);
-        // window.location.href = "http://localhost:1420/"
+    let disposed = false;
+    const unlisteners: UnlistenFn[] = [];
+
+    const subscribe = async () => {
+      const stopSyncState = await listen<boolean>(SYNC_STATE_EVENT, (event) => {
+        if (!disposed && event.payload) setTaskStatus([]);
+      });
+      if (disposed) {
+        stopSyncState();
+        return;
       }
-    }, 1000);
-    return () => window.clearInterval(interval);
+      unlisteners.push(stopSyncState);
+
+      const stopTaskProgress = await listen<TaskStatus>(
+        TASK_PROGRESS_EVENT,
+        (event) => {
+          if (disposed) return;
+          setTaskStatus((current) => {
+            const index = current.findIndex((task) => task.id === event.payload.id);
+            if (index === -1) {
+              return [...current, event.payload].sort((a, b) => a.id - b.id);
+            }
+            const next = [...current];
+            next[index] = event.payload;
+            return next;
+          });
+        },
+      );
+      if (disposed) {
+        stopTaskProgress();
+        return;
+      }
+      unlisteners.push(stopTaskProgress);
+      try {
+        const runningTasks = await invoke<TaskStatus[]>("getall_task");
+        if (!disposed) setTaskStatus(runningTasks);
+      } catch (error) {
+        console.error("Failed to load task state", error);
+      }
+    };
+
+    subscribe().catch((error) => {
+      console.error("Failed to subscribe to task progress", error);
+    });
+    return () => {
+      disposed = true;
+      unlisteners.forEach((unlisten) => unlisten());
+    };
   }, []);
 
   return (
