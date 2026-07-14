@@ -2,7 +2,7 @@ use crate::error::Error;
 
 use std::{
     fs::{read_dir, File},
-    io::Read,
+    io::{BufReader, Read},
     path::Path,
 };
 
@@ -69,9 +69,18 @@ impl MSMOD {
         parentpath: &str,
         serverurl: Option<&str>,
     ) -> Result<MSMOD, Error> {
-        let mut file = File::open(filepath)?;
-        let mut buffer = Vec::new();
-        let size = file.read_to_end(&mut buffer)?;
+        let mut file = BufReader::new(File::open(filepath)?);
+        let mut buffer = [0_u8; 64 * 1024];
+        let mut size = 0_usize;
+        let mut digest = md5::Context::new();
+        loop {
+            let bytes_read = file.read(&mut buffer)?;
+            if bytes_read == 0 {
+                break;
+            }
+            digest.consume(&buffer[..bytes_read]);
+            size += bytes_read;
+        }
 
         let strfilepath = filepath.to_string_lossy().to_string();
         let strpath = if parentpath.is_empty() {
@@ -94,7 +103,7 @@ impl MSMOD {
                 .replace('\\', "/")
         };
 
-        let digest = md5::compute(buffer);
+        let digest = digest.compute();
         let url = match serverurl {
             Some(su) => Some(format!("{}{}", su, strpath)),
             None => None,
