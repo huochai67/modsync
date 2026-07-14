@@ -1,2 +1,4 @@
 dist
 .minecraft
+node_modules
+target

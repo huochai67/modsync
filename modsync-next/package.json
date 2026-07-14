@@ -10,6 +10,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@modsync/contracts": "workspace:*",
     "@heroui/react": "^3.0.0-beta.5",
     "@heroui/styles": "^3.0.0-beta.5",
     "@icons-pack/react-simple-icons": "^13.8.0",
