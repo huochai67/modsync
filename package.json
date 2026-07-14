@@ -4,6 +4,8 @@
   "packageManager": "pnpm@10.14.0",
   "scripts": {
     "build": "pnpm --filter @modsync/contracts build && pnpm --filter modsync-next build && pnpm --filter modsync-next-configurator build",
+    "build:desktop": "pnpm --filter modsync-next tauri build && pnpm --filter modsync-next-configurator tauri build",
+    "dev:desktop": "pnpm --filter modsync-next tauri dev",
     "check": "pnpm --filter @modsync/contracts check && pnpm --filter modsync-next exec tsc --noEmit && pnpm --filter modsync-next-configurator exec tsc --noEmit"
   }
 }
