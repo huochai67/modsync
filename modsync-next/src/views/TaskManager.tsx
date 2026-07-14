@@ -3,6 +3,7 @@ import TaskProgress from "@/components/TaskProgress";
 import { invoke } from "@tauri-apps/api/core";
 
 import { TaskStatus } from "@/types";
+import { ListChecks } from "lucide-react";
 
 const TaskManager: React.FC = () => {
   const [task_status, setTaskStatus] = React.useState<Array<TaskStatus>>([]);
@@ -24,10 +25,11 @@ const TaskManager: React.FC = () => {
   }, []);
 
   return (
-    <div className="w-full h-full">
+    <div className="page-wrap w-full h-full">
+      <header className="mb-6"><div className="eyebrow">Sync activity</div><h1 className="page-heading">任务管理</h1><p className="page-description">实时查看下载、删除和文件处理进度。</p></header>
       {task_status.length === 0 ? (
-        <div className="text-center py-20 bg-background-tertiary rounded-2xl border-2 border-accent">
-            <p>当前没有任务记录。</p>
+        <div className="task-empty surface">
+          <div><div className="empty-icon"><ListChecks size={24}/></div><p className="font-semibold">当前没有任务记录</p><p className="page-description mt-2">开始同步后，任务进度会显示在这里。</p></div>
         </div>
       ) : (
         <div className="flex flex-col gap-4 min-h-full">

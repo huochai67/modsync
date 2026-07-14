@@ -12,7 +12,7 @@ const HistoryItem: React.FC<HistoryItemProps> = ({ release }) => {
     const [expanded, setExpanded] = useState(false);
 
     return (
-        <div className="bg-background-tertiary rounded-lg shadow-sm border overflow-hidden mb-4 transition-all">
+        <div className="history-item rounded-lg shadow-sm border overflow-hidden mb-4 transition-all">
             <div
                 className="p-4 cursor-pointer flex items-center justify-between"
                 onClick={() => setExpanded(!expanded)}

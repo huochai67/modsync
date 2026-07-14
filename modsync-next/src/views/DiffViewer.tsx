@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect } from "react";
 import { MOCK_MOD_DIFFS } from "@/mockData";
 import { MODDiff, TaskRunSummary } from "@/types";
-import { Button, Checkbox, Label, ListBox, Separator } from "@heroui/react";
+import { Button, Checkbox, Label, ListBox } from "@heroui/react";
+import { RefreshCw } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import ModDiffListItem from "@/components/ModDiffListItem";
 import { useNavigate } from "react-router-dom";
@@ -58,13 +59,12 @@ const DiffViewer: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full space-y-2">
-      <div className="flex flex-row justify-between">
+    <div className="page-wrap h-full space-y-6">
+      <div className="flex flex-row justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">
-            文件对比
-          </h1>
-          <p className="text-muted mt-1">详细显示每一个差异</p>
+          <div className="eyebrow">Sync preview</div>
+          <h1 className="page-heading">文件差异</h1>
+          <p className="page-description">选择要处理的项目，确认后将同步到本地客户端。</p>
         </div>
         <div className="flex flex-col items-center space-y-1">
           <div className="w-full flex justify-end">
@@ -74,7 +74,7 @@ const DiffViewer: React.FC = () => {
                 !initialized || (diff.length === 0 && !syncConfigPack)
               }
             >
-              开始同步
+              <RefreshCw size={16}/> 开始同步
             </Button>
           </div>
           <div className="flex items-center gap-3">
@@ -94,11 +94,10 @@ const DiffViewer: React.FC = () => {
           {/* <span className="text-sm text-muted">{diff.length}条差异</span> */}
         </div>
       </div>
-      <Separator />
-
       {initialized ? (
         diff.length !== 0 ? (
-          <div className="bg-background-tertiary border rounded-xl overflow-hidden">
+          <div className="surface list-surface">
+            <div className="list-header"><span>已检测到 {diff.length} 项变更</span><span>默认已全选</span></div>
             <div className="overflow-x-auto">
               <ListBox
                 selectionMode="multiple"

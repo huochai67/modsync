@@ -9,12 +9,12 @@ const Changelog: React.FC = () => {
   const runtime = React.useContext(RuntimeContext);
   const history = runtime.release_info;
   return (
-    <div className="flex-1 p-6 md:p-10">
-      <div className="max-w-4xl mx-auto">
-        <header className="flex items-center justify-between mb-8">
+    <div className="page-wrap">
+      <div>
+        <header className="flex items-end justify-between mb-8">
           <div>
-            <h2 className="text-xl font-bold">更新日志</h2>
-            <p className="text-sm text-muted">可视化展示过去的更改和发布记录</p>
+            <div className="eyebrow">Release history</div><h1 className="page-heading">更新日志</h1>
+            <p className="page-description">浏览客户端过去的更改和发布记录。</p>
           </div>
           <Chip
             color="success"

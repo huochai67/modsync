@@ -63,7 +63,7 @@ const ModDiffListItem: React.FC<ModDiffListItemProps> = ({ moddiff }) => {
   const info: MSMOD = moddiff.local ? moddiff.local : moddiff.remote!;
 
   return (
-    <ListBox.Item
+    <ListBox.Item className="diff-item"
       id={moddiff.name}
       key={moddiff.name}
       textValue={moddiff.name}

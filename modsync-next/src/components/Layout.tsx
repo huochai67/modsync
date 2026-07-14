@@ -6,12 +6,13 @@ import {
   Settings2,
   List,
   Layers,
+  Radio,
 } from "lucide-react";
 
 import { invoke } from "@tauri-apps/api/core";
 import { Window } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Button, Separator } from "@heroui/react";
+import { Button } from "@heroui/react";
 
 import { RuntimeInfo } from "@/types";
 import { RuntimeContext } from "@/runtimecontext";
@@ -81,41 +82,40 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden ">
+    <div className="app-shell flex h-screen overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-64 border-r border bg-background-secondary flex flex-col">
-        <div className="p-6 border-b flex items-center gap-3">
-          <div className="bg-accent p-2 rounded-lg">
-            <Layers className="text-white" size={24} />
+      <aside className="sidebar flex flex-col">
+        <div className="brand">
+          <div className="brand-mark">
+            <Layers size={21} />
           </div>
-          <span className="font-bold text-xl tracking-tight text-white">
-            MS更新器
-          </span>
+          <div className="brand-copy"><div className="brand-name">MS 更新器</div><div className="brand-subtitle">MODSYNC NEXT</div></div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 overflow-y-auto">
+          <div className="nav-section">工作台</div>
           {navItems.map((item) => (
             <Button
               isDisabled={item.isDisabled}
               variant="ghost"
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+              className={`nav-link w-full flex items-center gap-3 transition-all duration-200 ${
                 location.pathname === item.path
-                  ? "bg-accent-soft text-accent border"
-                  : "text-muted"
+                  ? "active"
+                  : ""
               }`}
             >
               {item.icon}
-              <span className="font-medium">{item.label}</span>
+              <span className="nav-label font-medium">{item.label}</span>
             </Button>
           ))}
         </nav>
 
-        <Separator />
-        <div className="p-4">
+        <div className="community">
+          <p className="community-note">遇到问题？欢迎加入社区交流</p>
           <Button
-            className="w-full h-10"
+            className="w-full h-10 rounded-xl"
             variant="outline"
             onClick={() => {
               openUrl("https://qm.qq.com/q/dIp82HmC6Q");
@@ -128,18 +128,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden relative">
-        {/* Top Header Decor */}
-        {/* <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-blue-600 via-indigo-600 to-purple-600"></div> */}
-        <div className="flex-1 overflow-y-auto p-8">
+      <main className="main-area flex-1 flex flex-col overflow-hidden relative">
+        <header className="topbar">
+          <div><div className="topbar-kicker">MODSYNC / CLIENT</div><div className="topbar-title">管理你的 Minecraft 客户端文件</div></div>
+          <div className="connection"><span className="connection-dot" /><span>{is_syncing ? "正在同步" : "同步服务就绪"}</span><Radio size={15} /></div>
+        </header>
+        <div className="page-content flex-1">
           <RuntimeContext.Provider value={runtime}>
             {initialized ? (
               children
             ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-accent">
-                  正在初始化运行时环境，请稍候...
-                </div>
+              <div className="task-empty surface h-full">
+                <div><div className="empty-icon"><Layers size={23} /></div><div className="font-semibold">正在连接同步服务</div><div className="page-description mt-2">正在初始化运行时环境，请稍候…</div></div>
               </div>
             )}
           </RuntimeContext.Provider>
