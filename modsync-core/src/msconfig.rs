@@ -76,14 +76,14 @@ impl MSConfig {
         }
     }
 
-    pub fn from_str(json: &str) -> Result<MSConfig, Error> {
+    pub fn from_json(json: &str) -> Result<MSConfig, Error> {
         Ok(serde_json::from_str::<MSConfig>(json)?)
     }
     pub fn from_file(filepath: &str) -> Result<MSConfig, Error> {
         let mut file = File::open(filepath)?;
         let mut str: String = "".to_string();
         file.read_to_string(&mut str)?;
-        Ok(MSConfig::from_str(str.as_str())?)
+        MSConfig::from_json(str.as_str())
     }
 
     pub async fn get_remote_config(url: &str) -> Result<MSConfig, Error> {
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn legacy_config_defaults_to_schema_version_one() {
-        let config = MSConfig::from_str(
+        let config = MSConfig::from_json(
             r#"{"base_url":"https://example.test/","release_info":[],"modlist_url":null,"metadata":null,"title":"Example"}"#,
         )
         .expect("legacy config should remain readable");

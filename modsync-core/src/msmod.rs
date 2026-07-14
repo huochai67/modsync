@@ -46,17 +46,6 @@ impl MSMOD {
         }
     }
 
-    pub fn clone(&self) -> MSMOD {
-        MSMOD {
-            md5: self.md5.clone(),
-            path: self.path.clone(),
-            size: self.size,
-            url: self.url.clone(),
-            modid: self.modid.clone(),
-            version: self.version.clone(),
-        }
-    }
-
     pub fn from_jsonfile(filepath: &str) -> Result<Vec<MSMOD>, Error> {
         let mut file = File::open(filepath)?;
         let mut str: String = "".to_string();
@@ -104,10 +93,7 @@ impl MSMOD {
         };
 
         let digest = digest.compute();
-        let url = match serverurl {
-            Some(su) => Some(format!("{}{}", su, strpath)),
-            None => None,
-        };
+        let url = serverurl.map(|su| format!("{}{}", su, strpath));
 
         let mut modid = Option::None;
         let mut version = Option::None;
@@ -137,7 +123,7 @@ impl MSMOD {
                                     if let Ok(modmeta) =
                                         toml::from_str::<ModMeta>(contents.as_str())
                                     {
-                                        if modmeta.mods.len() > 0 {
+                                        if !modmeta.mods.is_empty() {
                                             modid = Option::Some(modmeta.mods[0].modId.clone());
                                             if modmeta.mods[0].version != "${file.jarVersion}" {
                                                 version =

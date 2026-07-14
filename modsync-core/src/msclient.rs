@@ -102,6 +102,13 @@ impl MSClientBuilder {
         }
     }
 }
+
+impl Default for MSClientBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MSClient {
     pub fn get_path(&self) -> &Path {
         &self.inner.path
